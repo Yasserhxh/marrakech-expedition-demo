@@ -16,7 +16,9 @@ import {
 } from '@/features/commandes/hooks/useCommandeMutations'
 import { useReferentielLookup } from '@/features/referentiels/hooks/useReferentiels'
 import { INCOTERM_LABELS } from '@/types'
+import { useAppStore } from '@/store/useAppStore'
 import { numeroAffiche } from '@/utils/commande'
+import { peutAutoriserPesee } from '@/utils/parcours'
 import { ABSENT, formatDateTime, formatKg, formatNombre, formatTonnes } from '@/utils/format'
 
 interface CommandeDrawerProps {
@@ -31,6 +33,7 @@ export function CommandeDrawer({ commandeId, onClose }: CommandeDrawerProps) {
   const annulerCommande = useAnnulerCommande()
   const r = useReferentielLookup()
   const navigate = useNavigate()
+  const peutAutoriser = peutAutoriserPesee(useAppStore((s) => s.role))
   const [apercu, setApercu] = useState<'BC' | 'BL' | null>(null)
   const [confirmerAnnulation, setConfirmerAnnulation] = useState(false)
 
@@ -62,7 +65,7 @@ export function CommandeDrawer({ commandeId, onClose }: CommandeDrawerProps) {
           <FiPrinter aria-hidden="true" /> Bon de livraison
         </Button>
       ) : null}
-      {commande.statut === 'Creee' ? (
+      {commande.statut === 'Creee' && peutAutoriser ? (
         <Button loading={autoriserEntree.isPending} onClick={() => autoriserEntree.mutate(commande.id)}>
           <FiLogIn aria-hidden="true" /> Autoriser la pesée d'entrée
         </Button>
@@ -72,7 +75,7 @@ export function CommandeDrawer({ commandeId, onClose }: CommandeDrawerProps) {
           <FiLogIn aria-hidden="true" /> Pesée d'entrée
         </Button>
       ) : null}
-      {commande.statut === 'DansUsine' ? (
+      {commande.statut === 'DansUsine' && peutAutoriser ? (
         <Button loading={autoriserSortie.isPending} onClick={() => autoriserSortie.mutate(commande.id)}>
           <FiLogOut aria-hidden="true" /> Autoriser le 2ᵉ pesage
         </Button>
@@ -103,6 +106,13 @@ export function CommandeDrawer({ commandeId, onClose }: CommandeDrawerProps) {
         {commande.statut === 'ErreurSynchro' ? (
           <Notice tone="danger">
             Synchronisation SAP en erreur. Consultez la page « Synchronisation SAP » pour relancer.
+          </Notice>
+        ) : null}
+        {(commande.statut === 'Creee' || commande.statut === 'DansUsine') && !peutAutoriser ? (
+          <Notice tone="info">
+            {commande.statut === 'Creee'
+              ? 'La pesée d’entrée doit être autorisée par le guichet.'
+              : 'Le second pesage doit être autorisé par le guichet.'}
           </Notice>
         ) : null}
         {commande.origine === 'Locale' && commande.synchro === 'EnAttente' ? (

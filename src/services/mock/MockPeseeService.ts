@@ -3,13 +3,12 @@ import { jeuDemo } from '@/services/mock/jeuDemo'
 import { useAppStore, type PoidsState } from '@/store/useAppStore'
 import type { Commande, EtapeSynchro, Pont } from '@/types'
 import { bcNumero } from '@/data/mock'
+import { LECTURES_IDENTIQUES_POUR_STABLE, SEUIL_CAMION_KG } from '@/domain/pesee'
 import { padNumero } from '@/utils/format'
 
 /* Règles identiques à la production (kiosque Temara) */
 const FREQUENCE_HZ = 5
 const DUREE_RAMPE_MS = 2500
-const LECTURES_IDENTIQUES_POUR_STABLE = 15
-const SEUIL_STABLE_KG = 2000
 const GIGUE_KG = 12
 const LONGUEUR_NUMERO_SAP = 10
 
@@ -46,21 +45,21 @@ function exigerPesee(commandeId: number): Commande {
   if (!commande) throw new Error(`Commande ${commandeId} introuvable`)
   const lecture = poids()
   if (!lecture.stable) throw new Error('Le poids n’est pas stable : validation refusée')
-  if (lecture.lectureKg < SEUIL_STABLE_KG) throw new Error('Aucun camion sur le pont')
+  if (lecture.lectureKg < SEUIL_CAMION_KG) throw new Error('Aucun camion sur le pont')
   return commande
 }
 
 export const mockPeseeService: PeseeService = {
   selectionnerPont(pont: Pont) {
     arreter()
-    majPoids({ pont, lectureKg: 0, stable: false, enCours: false })
+    majPoids({ pont, lectureKg: 0, stable: false, enCours: false, lecturesIdentiques: 0 })
   },
 
   simulerCamion(cibleKg: number) {
     arreter()
     const cible = Math.max(0, Math.round(cibleKg))
     let pas = 0
-    majPoids({ enCours: true, stable: false, lectureKg: 0, connecte: true })
+    majPoids({ enCours: true, stable: false, lectureKg: 0, connecte: true, lecturesIdentiques: 0 })
     minuteur = window.setInterval(() => {
       pas += 1
       let valeur: number
@@ -72,14 +71,14 @@ export const mockPeseeService: PeseeService = {
       }
       lecturesIdentiques = valeur === derniereValeur ? lecturesIdentiques + 1 : 1
       derniereValeur = valeur
-      const stable = lecturesIdentiques >= LECTURES_IDENTIQUES_POUR_STABLE && valeur >= SEUIL_STABLE_KG
-      majPoids({ lectureKg: valeur, stable, derniereLectureUtc: new Date().toISOString() })
+      const stable = lecturesIdentiques >= LECTURES_IDENTIQUES_POUR_STABLE && valeur >= SEUIL_CAMION_KG
+      majPoids({ lectureKg: valeur, stable, lecturesIdentiques, derniereLectureUtc: new Date().toISOString() })
     }, PERIODE_MS)
   },
 
   arreterSimulation() {
     arreter()
-    majPoids({ enCours: false, stable: false, lectureKg: 0 })
+    majPoids({ enCours: false, stable: false, lectureKg: 0, lecturesIdentiques: 0 })
   },
 
   async validerTare(commandeId) {

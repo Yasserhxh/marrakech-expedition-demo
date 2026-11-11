@@ -32,6 +32,14 @@ interface Ligne {
   commande: Commande
 }
 
+const PRIORITE_FILE: Record<SyncOperation['statut'], number> = {
+  Erreur: 0,
+  EnAttente: 1,
+  EnCours: 2,
+  Synchronisee: 3,
+  Aucune: 4,
+}
+
 export function SynchronisationPage() {
   const sapOnline = useAppStore((s) => s.sapOnline)
   const { data: syncOps = [], isPending, isFetching, isError, error } = useSyncOperations()
@@ -47,7 +55,9 @@ export function SynchronisationPage() {
   const lignes: Ligne[] = syncOps
     .map((op) => ({ op, commande: commandes.find((c) => c.id === op.commandeId) }))
     .filter((l): l is Ligne => Boolean(l.commande))
-    .sort((a, b) => b.op.id - a.op.id)
+    .sort(
+      (a, b) => PRIORITE_FILE[a.op.statut] - PRIORITE_FILE[b.op.statut] || b.op.id - a.op.id,
+    )
 
   const compte = {
     attente: syncOps.filter((o) => o.statut === 'EnAttente').length,
@@ -77,23 +87,9 @@ export function SynchronisationPage() {
     {
       key: 'statut',
       header: 'Statut',
-      render: ({ op }) => (
-        <span>
-          <SynchroBadge synchro={op.statut} />
-          {op.statut === 'EnCours' ? (
-            <span className="progress" aria-hidden="true">
-              <span
-                className="progress__bar"
-                style={{
-                  width: `${Math.round(((op.etapesFaites.length + 0.5) / op.etapes.length) * 100)}%`,
-                }}
-              />
-            </span>
-          ) : null}
-        </span>
-      ),
+      render: ({ op }) => <SynchroBadge synchro={op.statut} />,
       width: '8rem',
-      sortValue: ({ op }) => op.statut,
+      sortValue: ({ op }) => PRIORITE_FILE[op.statut],
     },
     {
       key: 'tentatives',
@@ -156,6 +152,7 @@ export function SynchronisationPage() {
               size="sm"
               loading={synchroniser.isPending && synchroniser.variables === op.id}
               disabled={!sapOnline || tout.isPending}
+              aria-describedby={!sapOnline ? 'etat-sap' : tout.isPending ? 'sync-cours' : undefined}
               aria-label="Synchroniser"
               onClick={() => synchroniser.mutate(op.id)}
             >
@@ -167,6 +164,7 @@ export function SynchronisationPage() {
               size="sm"
               loading={synchroniser.isPending && synchroniser.variables === op.id}
               disabled={!sapOnline || tout.isPending}
+              aria-describedby={!sapOnline ? 'etat-sap' : tout.isPending ? 'sync-cours' : undefined}
               onClick={() => synchroniser.mutate(op.id)}
             >
               <FiRefreshCw aria-hidden="true" /> Réessayer
@@ -197,6 +195,7 @@ export function SynchronisationPage() {
             <Button
               loading={tout.isPending}
               disabled={!sapOnline || aSynchroniser === 0}
+              aria-describedby={!sapOnline ? 'etat-sap' : undefined}
               onClick={() => void toutSynchroniser()}
             >
               <FiRefreshCw aria-hidden="true" />
@@ -213,8 +212,15 @@ export function SynchronisationPage() {
       ) : ping.isPending ? (
         <p className="text-muted">Test de connexion SAP…</p>
       ) : (
-        <Notice tone="danger">SAP injoignable. La file est conservée ; la synchronisation reprendra au retour de SAP.</Notice>
+        <Notice tone="danger">
+          <span id="etat-sap">SAP injoignable. La file est conservée ; aucun envoi ne part tant que SAP n’est pas joignable.</span>
+        </Notice>
       )}
+      {tout.isPending ? (
+        <p id="sync-cours" className="text-muted" role="status">
+          Synchronisation en cours. Les autres envois restent bloqués jusqu’à la fin de celui-ci.
+        </p>
+      ) : null}
 
       <div className="kpi-row">
         <KpiCard title="En attente" value={compte.attente} icon={<FiClock />} tone={compte.attente > 0 ? 'warning' : 'default'} />

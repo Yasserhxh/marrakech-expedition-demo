@@ -36,6 +36,10 @@ export function MonitoringPage() {
   const incidents = snapshot.sante.filter((s) => s.etat !== 'ok')
   const servicesSains = snapshot.sante.filter((s) => s.etat === 'ok')
   const libelleEtat = (etat: string) => (etat === 'ok' ? 'OK' : etat === 'degrade' ? 'Dégradé' : 'Indisponible')
+  const derniereErreur = snapshot.erreurs.reduce<string | null>(
+    (max, e) => (!max || e.horodatageUtc > max ? e.horodatageUtc : max),
+    null,
+  )
 
   const colonnes: Column<MonitoringErreur>[] = [
     { key: 'heure', header: 'Heure', render: (e) => formatHeure(e.horodatageUtc, true), sortValue: (e) => e.horodatageUtc },
@@ -61,6 +65,13 @@ export function MonitoringPage() {
 
   return (
     <PageShell title="Monitoring" subtitle="Télémétrie simulée — incidents en premier, puis services sains">
+      <p className="text-muted">
+        {incidents.length === 0
+          ? 'Aucun service en incident dans cette télémétrie simulée.'
+          : `${incidents.length} service${incidents.length > 1 ? 's' : ''} en incident dans cette télémétrie simulée.`}
+        {derniereErreur ? ` Dernière erreur relevée à ${formatHeure(derniereErreur, true)}.` : ''} Ces mesures ne sont pas
+        une supervision de production.
+      </p>
       {incidents.length > 0 ? (
         <section className="monitor-block">
           <h2>Incidents</h2>

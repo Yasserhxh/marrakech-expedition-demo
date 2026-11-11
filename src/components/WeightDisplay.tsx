@@ -1,6 +1,7 @@
 import clsx from 'clsx'
 import { FiActivity, FiCheckCircle } from 'react-icons/fi'
 import { PONTS } from '@/data/mock'
+import { LECTURES_IDENTIQUES_POUR_STABLE } from '@/domain/pesee'
 import type { Pont } from '@/types'
 import { formatHeure, formatNombre } from '@/utils/format'
 
@@ -13,6 +14,7 @@ interface WeightDisplayProps {
   derniereLectureUtc: string | null
   connecte: boolean
   enCours?: boolean
+  lecturesIdentiques?: number
 }
 
 export function WeightDisplay({
@@ -24,6 +26,7 @@ export function WeightDisplay({
   derniereLectureUtc,
   connecte,
   enCours = false,
+  lecturesIdentiques = 0,
 }: WeightDisplayProps) {
   const presence =
     !connecte
@@ -43,7 +46,9 @@ export function WeightDisplay({
       ? 'Aucun camion sur le pont'
       : stable
         ? 'Stable — pesée exploitable'
-        : 'Instable — en attente de 15 lectures identiques'
+        : lecturesIdentiques > 0
+          ? `Stabilisation en cours — ${lecturesIdentiques} lectures sur ${LECTURES_IDENTIQUES_POUR_STABLE}`
+          : 'Instable — en attente de lectures identiques'
   return (
     <div className="weighbridge">
       <div className="weighbridge__toolbar">

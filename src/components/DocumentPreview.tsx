@@ -57,7 +57,7 @@ export function DocumentPreview({ type, commande, onPrinted }: DocumentPreviewPr
             </button>
           ))}
         </div>
-        <button type="button" className="btn-action" onClick={imprimer}>
+        <button type="button" className="btn-action" onClick={imprimer} aria-label={`Imprimer le ${estBl ? 'bon de livraison' : 'bon de chargement'}, exemplaire ${exemplaire}`}>
           <FiPrinter aria-hidden="true" /> Imprimer ({exemplaire})
         </button>
       </div>

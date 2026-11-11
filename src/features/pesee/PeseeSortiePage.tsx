@@ -1,13 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import clsx from 'clsx'
-import { FiArrowRight, FiCheck, FiSliders, FiTruck, FiXCircle } from 'react-icons/fi'
+import { FiCheck, FiSliders, FiTruck, FiXCircle } from 'react-icons/fi'
 import { PageShell } from '@/components/PageShell'
 import { Button } from '@/components/Button'
 import { WeightDisplay } from '@/components/WeightDisplay'
 import { DocumentPreview } from '@/components/DocumentPreview'
 import { EmptyState } from '@/components/EmptyState'
 import { Notice } from '@/components/Notice'
+import { SuiteEtape } from '@/components/SuiteEtape'
+import { SynchroBadge } from '@/components/StatusBadge'
 import { CommandePeseeResume } from '@/features/pesee/CommandePeseeResume'
 import { useCommande } from '@/features/commandes/hooks/useCommandes'
 import { useAutoriserSecondPesage, useValiderBrut } from '@/features/commandes/hooks/useCommandeMutations'
@@ -15,6 +17,8 @@ import { services } from '@/services'
 import { useAppStore } from '@/store/useAppStore'
 import type { Commande } from '@/types'
 import { formatKg, formatPourcentage } from '@/utils/format'
+import { etapeCourante, lienPourRole, peutAutoriserPesee } from '@/utils/parcours'
+import { motifValidation } from '@/utils/peseeUi'
 
 const KG_PAR_TONNE = 1000
 const ECART_OK = 0.02
@@ -44,8 +48,11 @@ export function PeseeSortiePage() {
   const commande = confirmee ?? commandeChargee ?? null
   const poids = useAppStore((s) => s.poids)
   const sapOnline = useAppStore((s) => s.sapOnline)
+  const role = useAppStore((s) => s.role)
   const validerBrut = useValiderBrut()
   const autoriser = useAutoriserSecondPesage()
+  const peutAutoriser = peutAutoriserPesee(role)
+  const envoi = useRef(false)
 
   const tareKg = commande?.peseeEntree?.poidsKg ?? 0
   const commandeKg = (commande?.quantiteT ?? 0) * KG_PAR_TONNE
@@ -53,6 +60,15 @@ export function PeseeSortiePage() {
   const cible = cibleSaisie ?? Math.round(tareKg + commandeKg * (1 + ECART_SIMULE_PAR_DEFAUT))
 
   useEffect(() => () => services.pesee.arreterSimulation(), [])
+  useEffect(() => {
+    if (!confirmee || !commandeChargee) return
+    if (
+      confirmee.statut !== commandeChargee.statut ||
+      confirmee.bonDeLivraison?.numeroProvisoire !== commandeChargee.bonDeLivraison?.numeroProvisoire
+    ) {
+      setConfirmee(null)
+    }
+  }, [commandeChargee, confirmee])
 
   if (isPending && !commande) {
     return (
@@ -81,7 +97,14 @@ export function PeseeSortiePage() {
   }
 
   const valider = () => {
-    validerBrut.mutate(commande.id, { onSuccess: (suivante) => setConfirmee(suivante) })
+    if (envoi.current || validerBrut.isPending || !poids.stable) return
+    envoi.current = true
+    validerBrut.mutate(commande.id, {
+      onSuccess: (suivante) => setConfirmee(suivante),
+      onSettled: () => {
+        envoi.current = false
+      },
+    })
   }
 
   const entete = <CommandePeseeResume commande={commande} />
@@ -90,35 +113,41 @@ export function PeseeSortiePage() {
   const ratio = commandeKg > 0 ? (netKg - commandeKg) / commandeKg : 0
   const tone = toneEcart(ratio)
 
-  if (confirmee?.bonDeLivraison) {
+  if (confirmee?.bonDeLivraison && confirmee.peseeSortie) {
     const bon = confirmee.bonDeLivraison
+    const suite = lienPourRole(etapeCourante(confirmee).lien, role)
     return (
       <PageShell
         title="Bon de livraison"
         subtitle={
           bon.numeroSap
             ? `BL SAP ${bon.numeroSap} — commande livrée`
-            : 'BL provisoire — commande livrée, synchronisation SAP en attente'
+            : 'BL provisoire — pesée terminée localement, synchronisation SAP en attente'
         }
       >
         {entete}
+        <SuiteEtape commande={confirmee} masquerLien />
+        <p className="text-muted">
+          Brut enregistré {formatKg(confirmee.peseeSortie.poidsKg)} · Tare {formatKg(bon.tareKg)} · Net{' '}
+          {formatKg(bon.netKg)}. <SynchroBadge synchro={confirmee.synchro} />
+        </p>
         {!bon.numeroSap ? (
           <Notice tone="warning">
-            Le numéro SAP sera attribué lors de la synchronisation ; vous pourrez alors réimprimer le BL définitif depuis
-            la page « Synchronisation SAP ».
+            SAP n’a pas reçu cette opération. Le bon porte un numéro provisoire. La synchronisation est une étape
+            distincte, depuis la file SAP.
           </Notice>
         ) : null}
         <div className="admin-card">
           <DocumentPreview type="BL" commande={confirmee} />
         </div>
         <div className="btn-row">
-          {confirmee.synchro === 'EnAttente' ? (
-            <Link to="/synchronisation" className="btn-primary">
-              Terminer — voir la synchronisation SAP <FiArrowRight aria-hidden="true" />
+          {suite ? (
+            <Link to={suite.vers} className="btn-primary">
+              {suite.libelle}
             </Link>
           ) : (
             <Link to="/commandes" className="btn-primary">
-              Terminer — retour aux commandes <FiArrowRight aria-hidden="true" />
+              Retour aux commandes
             </Link>
           )}
           <Link to="/usine" className="btn-ghost">
@@ -133,6 +162,7 @@ export function PeseeSortiePage() {
     return (
       <PageShell title="Pesée de sortie" subtitle="Second pesage : poids brut du camion chargé">
         {entete}
+        <SuiteEtape commande={commande} masquerLien />
         <div className="admin-card">
           <EmptyState
             icon={<FiTruck />}
@@ -147,13 +177,13 @@ export function PeseeSortiePage() {
                 : 'Consultez le détail de la commande pour les actions disponibles.'
             }
             action={
-              commande.statut === 'DansUsine' ? (
+              commande.statut === 'DansUsine' && peutAutoriser ? (
                 <Button loading={autoriser.isPending} onClick={() => autoriser.mutate(commande.id)}>
                   <FiCheck aria-hidden="true" /> Autoriser le 2ᵉ pesage (guichet)
                 </Button>
               ) : (
-                <Link to="/commandes" className="btn-ghost">
-                  Retour aux commandes
+                <Link to={commande.statut === 'DansUsine' ? '/usine' : '/commandes'} className="btn-ghost">
+                  {commande.statut === 'DansUsine' ? "Retour à « Dans l'usine »" : 'Retour aux commandes'}
                 </Link>
               )
             }
@@ -177,6 +207,7 @@ export function PeseeSortiePage() {
             derniereLectureUtc={poids.derniereLectureUtc}
             connecte={poids.connecte}
             enCours={poids.enCours}
+            lecturesIdentiques={poids.lecturesIdentiques}
           />
 
           <div className="net-panel" style={{ marginTop: 16 }} aria-live="polite">
@@ -196,20 +227,24 @@ export function PeseeSortiePage() {
           </div>
 
           <div className="pesee-action">
-            <Button size="lg" loading={validerBrut.isPending} disabled={!poids.stable} onClick={valider}>
-              <FiCheck aria-hidden="true" /> Valider et imprimer le Bon de livraison
+            <Button
+              size="lg"
+              loading={validerBrut.isPending}
+              disabled={!poids.stable}
+              aria-describedby="motif-brut"
+              onClick={valider}
+            >
+              <FiCheck aria-hidden="true" />{' '}
+              {poids.stable ? `Enregistrer ${formatKg(brutKg)} brut` : 'Enregistrer le poids brut'}
             </Button>
-            {!poids.stable ? (
-              <p className="text-muted pesee-action__hint">
-                {!poids.connecte
-                  ? 'Pont déconnecté : la validation est bloquée.'
-                  : !poids.enCours
-                    ? 'Aucun camion sur le pont. La validation reste bloquée.'
-                    : 'Le bouton s’active dès que le poids brut est stable.'}
-              </p>
-            ) : (
-              <p className="text-muted pesee-action__hint">Pesée stable : le brut peut être enregistré.</p>
-            )}
+            <p id="motif-brut" className="text-muted pesee-action__hint">
+              {motifValidation(
+                poids,
+                tone === 'bad'
+                  ? `Écart hors tolérance (${formatPourcentage(ratio)}). L’enregistrement conserve ce poids brut et calcule le net.`
+                  : `Le brut ${formatKg(brutKg)} et le net ${formatKg(netKg)} seront enregistrés. L’impression du bon se fait ensuite, à part.`,
+              )}
+            </p>
           </div>
         </div>
 

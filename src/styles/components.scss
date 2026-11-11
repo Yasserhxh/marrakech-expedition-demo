@@ -1847,6 +1847,33 @@
   line-height: 1.4;
 }
 
+.suite-etape {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--cimar-border);
+  border-radius: var(--radius-control);
+  background: var(--cimar-fill-soft);
+}
+
+.suite-etape__titre {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cimar-ink);
+}
+
+.suite-etape__detail {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--cimar-muted);
+}
+
 .tech-note {
   border: 1px solid var(--cimar-border);
   border-radius: var(--radius-control);

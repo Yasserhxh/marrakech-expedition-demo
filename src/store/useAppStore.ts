@@ -8,6 +8,8 @@ export interface PoidsState {
   derniereLectureUtc: string | null
   connecte: boolean
   enCours: boolean
+  /** Lectures identiques déjà comptées par la simulation du pont. */
+  lecturesIdentiques: number
 }
 
 export interface AppState {
@@ -41,6 +43,7 @@ const POIDS_INITIAL: PoidsState = {
   derniereLectureUtc: null,
   connecte: true,
   enCours: false,
+  lecturesIdentiques: 0,
 }
 
 export const useAppStore = create<AppState>()((set, get) => ({

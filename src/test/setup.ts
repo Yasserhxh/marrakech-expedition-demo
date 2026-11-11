@@ -14,6 +14,7 @@ const POIDS_INITIAL = {
   derniereLectureUtc: null,
   connecte: true,
   enCours: false,
+  lecturesIdentiques: 0,
 }
 
 beforeEach(() => {
