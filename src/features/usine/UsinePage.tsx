@@ -1,4 +1,3 @@
-import { useMemo } from 'react'
 import clsx from 'clsx'
 import { Link } from 'react-router-dom'
 import { FiAlertTriangle, FiClock, FiHome, FiLogOut } from 'react-icons/fi'
@@ -7,9 +6,11 @@ import { KpiCard } from '@/components/KpiCard'
 import { DataTable, type Column } from '@/components/DataTable'
 import { EmptyState } from '@/components/EmptyState'
 import { OrigineBadge, StatutBadge } from '@/components/StatusBadge'
-import { services } from '@/services'
-import { useAppStore, useReferentielLookup, numeroAffiche } from '@/store/useAppStore'
+import { useAutoriserSecondPesage } from '@/features/commandes/hooks/useCommandeMutations'
+import { useReferentielLookup } from '@/features/referentiels/hooks/useReferentiels'
+import { useCamionsDansUsine } from '@/features/usine/hooks/useCamionsDansUsine'
 import type { Commande } from '@/types'
+import { numeroAffiche } from '@/utils/commande'
 import { formatDuree, formatHeure, formatKg, formatTonnes, minutesEcoulees } from '@/utils/format'
 import { useNow } from '@/utils/useNow'
 
@@ -18,11 +19,8 @@ const SEUIL_ALERTE_MIN = 90
 export function UsinePage() {
   const now = useNow(30000)
   const r = useReferentielLookup()
-  const toutes = useAppStore((s) => s.commandes)
-  const commandes = useMemo(
-    () => toutes.filter((c) => c.statut === 'DansUsine' || c.statut === 'SortieAutorisee'),
-    [toutes],
-  )
+  const { data: commandes = [] } = useCamionsDansUsine()
+  const autoriser = useAutoriserSecondPesage()
 
   const enRetard = commandes.filter((c) => c.entreeUtc && minutesEcoulees(c.entreeUtc, now) > SEUIL_ALERTE_MIN).length
 
@@ -90,7 +88,8 @@ export function UsinePage() {
           <button
             type="button"
             className="btn-primary btn-sm"
-            onClick={() => services.commandes.autoriserSecondPesage(c.id)}
+            disabled={autoriser.isPending && autoriser.variables === c.id}
+            onClick={() => autoriser.mutate(c.id)}
           >
             <FiLogOut aria-hidden="true" /> Autoriser le 2ᵉ pesage
           </button>

@@ -4,9 +4,10 @@ import { PageShell } from '@/components/PageShell'
 import { DataTable, type Column } from '@/components/DataTable'
 import { Modal } from '@/components/Modal'
 import { ConditionnementBadge } from '@/components/StatusBadge'
-import { services } from '@/services'
-import { useAppStore } from '@/store/useAppStore'
+import { useAjouterReferentiel, useReferentiels } from '@/features/referentiels/hooks/useReferentiels'
+import type { NouvelElement } from '@/services'
 import type { ReferentielKind } from '@/types'
+import { messageErreur } from '@/utils/erreurs'
 
 const ONGLETS: { kind: ReferentielKind; label: string }[] = [
   { kind: 'clients', label: 'Clients' },
@@ -28,11 +29,20 @@ interface Champ {
 type Ligne = Record<string, unknown> & { id: string }
 
 export function ReferentielsPage() {
-  const ref = useAppStore((s) => s.referentiels)
+  const { data: ref, isError, error } = useReferentiels()
+  const ajouter = useAjouterReferentiel()
   const [onglet, setOnglet] = useState<ReferentielKind>('clients')
   const [recherche, setRecherche] = useState('')
   const [ajout, setAjout] = useState(false)
   const [valeurs, setValeurs] = useState<Record<string, string>>({})
+
+  if (!ref) {
+    return (
+      <PageShell title="Référentiels" subtitle="Données locales utilisées pendant une coupure SAP (clients, chantiers, produits, transport)">
+        <p className="text-muted">{isError ? messageErreur(error) : 'Chargement…'}</p>
+      </PageShell>
+    )
+  }
 
   const clientsOpts = ref.clients.map((c) => ({ value: c.id, label: c.nom }))
   const transporteursOpts = ref.transporteurs.map((t) => ({ value: t.id, label: t.nom }))
@@ -115,8 +125,10 @@ export function ReferentielsPage() {
         element[c.key] = v
       }
     }
-    services.referentiels.ajouter(onglet, element as never)
-    setAjout(false)
+    ajouter.mutate(
+      { kind: onglet, element: element as NouvelElement<ReferentielKind> },
+      { onSuccess: () => setAjout(false) },
+    )
   }
 
   const complet = champs.every((c) => c.type === 'number' || (valeurs[c.key] ?? '').trim() !== '')
@@ -180,7 +192,7 @@ export function ReferentielsPage() {
             <button type="button" className="btn-ghost" onClick={() => setAjout(false)}>
               Annuler
             </button>
-            <button type="button" className="btn-primary" onClick={enregistrer} disabled={!complet}>
+            <button type="button" className="btn-primary" onClick={enregistrer} disabled={!complet || ajouter.isPending}>
               <FiDatabase aria-hidden="true" /> Enregistrer
             </button>
           </>

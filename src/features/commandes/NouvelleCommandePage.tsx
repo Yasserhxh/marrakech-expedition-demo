@@ -5,7 +5,8 @@ import { PageShell } from '@/components/PageShell'
 import { Combobox } from '@/components/Combobox'
 import { Notice } from '@/components/Notice'
 import { ConditionnementBadge } from '@/components/StatusBadge'
-import { services } from '@/services'
+import { useCreerCommandeLocale } from '@/features/commandes/hooks/useCommandeMutations'
+import { REFERENTIELS_VIDES, useReferentiels } from '@/features/referentiels/hooks/useReferentiels'
 import { useAppStore } from '@/store/useAppStore'
 import type { Incoterm } from '@/types'
 import { INCOTERM_LABELS } from '@/types'
@@ -39,8 +40,9 @@ const VIDE: Formulaire = {
 
 export function NouvelleCommandePage() {
   const sapOnline = useAppStore((s) => s.sapOnline)
-  const ref = useAppStore((s) => s.referentiels)
-  const pousserToast = useAppStore((s) => s.pousserToast)
+  const { data } = useReferentiels()
+  const ref = data ?? REFERENTIELS_VIDES
+  const creerCommande = useCreerCommandeLocale()
   const navigate = useNavigate()
   const [f, setF] = useState<Formulaire>(VIDE)
   const [soumis, setSoumis] = useState(false)
@@ -74,8 +76,8 @@ export function NouvelleCommandePage() {
   const creer = () => {
     setSoumis(true)
     if (!valide) return
-    try {
-      services.commandes.creerLocale({
+    creerCommande.mutate(
+      {
         clientId: f.clientId,
         chantierId: f.chantierId,
         produitId: f.produitId,
@@ -84,11 +86,9 @@ export function NouvelleCommandePage() {
         transporteurId: f.transporteurId,
         camionId: f.camionId,
         chauffeurId: f.chauffeurId,
-      })
-      navigate('/commandes')
-    } catch (e) {
-      pousserToast('error', e instanceof Error ? e.message : 'Création impossible')
-    }
+      },
+      { onSuccess: () => navigate('/commandes') },
+    )
   }
 
   const nom = (liste: { id: string; nom?: string; libelle?: string; immatriculation?: string }[], id: string) => {
@@ -243,7 +243,7 @@ export function NouvelleCommandePage() {
             <Link to="/commandes" className="btn-ghost">
               Annuler
             </Link>
-            <button type="submit" className="btn-primary btn-lg" disabled={sapOnline}>
+            <button type="submit" className="btn-primary btn-lg" disabled={sapOnline || creerCommande.isPending}>
               <FiPlus aria-hidden="true" /> Créer la commande
             </button>
           </div>

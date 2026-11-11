@@ -7,8 +7,13 @@ import { DocumentPreview } from '@/components/DocumentPreview'
 import { EmptyState } from '@/components/EmptyState'
 import { Notice } from '@/components/Notice'
 import { StatutBadge } from '@/components/StatusBadge'
+import { useCommande } from '@/features/commandes/hooks/useCommandes'
+import { useAutoriserPesee, useValiderTare } from '@/features/commandes/hooks/useCommandeMutations'
+import { useReferentielLookup } from '@/features/referentiels/hooks/useReferentiels'
 import { services } from '@/services'
-import { useAppStore, useReferentielLookup, numeroAffiche } from '@/store/useAppStore'
+import { useAppStore } from '@/store/useAppStore'
+import type { Commande } from '@/types'
+import { numeroAffiche } from '@/utils/commande'
 import { ABSENT, formatNombre, formatTonnes } from '@/utils/format'
 
 const TARE_PAR_DEFAUT_KG = 16000
@@ -17,15 +22,25 @@ export function PeseeEntreePage() {
   const { id } = useParams()
   const commandeId = Number(id)
   const navigate = useNavigate()
-  const commande = useAppStore((s) => s.commandes.find((c) => c.id === commandeId))
+  const { data: commandeChargee, isPending } = useCommande(Number.isFinite(commandeId) ? commandeId : null)
+  const [confirmee, setConfirmee] = useState<Commande | null>(null)
+  const commande = confirmee ?? commandeChargee ?? null
   const poids = useAppStore((s) => s.poids)
-  const pousserToast = useAppStore((s) => s.pousserToast)
+  const validerTare = useValiderTare()
+  const autoriser = useAutoriserPesee()
   const r = useReferentielLookup()
   const camion = commande ? r.camion(commande.camionId) : undefined
   const [cible, setCible] = useState<number>(camion?.tareReferenceKg ?? TARE_PAR_DEFAUT_KG)
-  const [bcEmis, setBcEmis] = useState(false)
 
   useEffect(() => () => services.pesee.arreterSimulation(), [])
+
+  if (isPending && !commande) {
+    return (
+      <PageShell title="Pesée d'entrée">
+        <p className="text-muted">Chargement…</p>
+      </PageShell>
+    )
+  }
 
   if (!commande) {
     return (
@@ -51,12 +66,7 @@ export function PeseeEntreePage() {
   const chauffeur = r.chauffeur(commande.chauffeurId)
 
   const valider = () => {
-    try {
-      services.pesee.validerTare(commande.id)
-      setBcEmis(true)
-    } catch (e) {
-      pousserToast('error', e instanceof Error ? e.message : 'Validation impossible')
-    }
+    validerTare.mutate(commande.id, { onSuccess: (suivante) => setConfirmee(suivante) })
   }
 
   const entete = (
@@ -93,12 +103,12 @@ export function PeseeEntreePage() {
     </div>
   )
 
-  if (bcEmis && commande.bonDeChargement) {
+  if (confirmee?.bonDeChargement) {
     return (
       <PageShell title="Bon de chargement" subtitle="Tare enregistrée — le camion peut entrer dans l'usine">
         {entete}
         <div className="admin-card">
-          <DocumentPreview type="BC" commande={commande} />
+          <DocumentPreview type="BC" commande={confirmee} />
         </div>
         <div className="btn-row" style={{ justifyContent: 'center' }}>
           <Link to="/usine" className="btn-primary btn-lg">
@@ -134,7 +144,8 @@ export function PeseeEntreePage() {
                 <button
                   type="button"
                   className="btn-primary"
-                  onClick={() => services.commandes.autoriserPesee(commande.id)}
+                  disabled={autoriser.isPending}
+                  onClick={() => autoriser.mutate(commande.id)}
                 >
                   <FiCheck aria-hidden="true" /> Autoriser la pesée (guichet)
                 </button>
@@ -165,7 +176,7 @@ export function PeseeEntreePage() {
             connecte={poids.connecte}
           />
           <div style={{ marginTop: 16 }}>
-            <button type="button" className="btn-primary btn-lg btn-block" disabled={!poids.stable} onClick={valider}>
+            <button type="button" className="btn-primary btn-lg btn-block" disabled={!poids.stable || validerTare.isPending} onClick={valider}>
               <FiCheck aria-hidden="true" /> Valider la tare et imprimer le Bon de chargement
             </button>
             {!poids.stable ? (

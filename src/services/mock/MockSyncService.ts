@@ -1,8 +1,11 @@
-import type { PingSap, SyncService } from '@/services/types'
-import { useAppStore, numeroAffiche } from '@/store/useAppStore'
+import type { PingSap, ResultatSynchronisation, SyncService } from '@/services/types'
+import { jeuDemo } from '@/services/mock/jeuDemo'
+import { verifierSignal } from '@/services/mock/signal'
+import { useAppStore } from '@/store/useAppStore'
 import type { EtapeSynchro, SyncOperation } from '@/types'
 import { MESSAGE_CLIENT_BLOQUE } from '@/data/mock'
 import { padNumero } from '@/utils/format'
+import { numeroAffiche } from '@/utils/commande'
 
 const DELAI_ETAPE_MS: Record<EtapeSynchro, number> = {
   CreerCommande: 1200,
@@ -14,84 +17,137 @@ const LATENCE_SAP_BASE_MS = 380
 const LATENCE_SAP_GIGUE_MS = 120
 const LONGUEUR_NUMERO_SAP = 10
 const MESSAGE_SAP_INJOIGNABLE = 'SAP injoignable (timeout 10 s vers SAP PRD)'
+const MESSAGE_SAP_HORS_LIGNE = 'SAP est hors ligne : la synchronisation est impossible pour le moment'
 
-const attendre = (ms: number) => new Promise<void>((r) => window.setTimeout(r, ms))
+/**
+ * Le backend devra garantir l'idempotence (clé d'opération) et le contrôle de concurrence.
+ * Le verrou ci-dessous empêche seulement un double envoi depuis ce navigateur ;
+ * il ne remplace pas cette garantie serveur.
+ */
+const verrous = new Set<number>()
 
-function opActuelle(id: number): SyncOperation | undefined {
-  return useAppStore.getState().syncOps.find((o) => o.id === id)
+export function interrompreSynchronisations() {
+  verrous.clear()
 }
 
-function echouer(op: SyncOperation, etape: EtapeSynchro, message: string) {
-  const st = useAppStore.getState()
-  st.patchSyncOp(op.id, { statut: 'Erreur', etapeCourante: etape, message })
-  st.patchCommande(op.commandeId, { synchro: 'Erreur', statut: 'ErreurSynchro' })
-  const c = st.commandes.find((x) => x.id === op.commandeId)
-  st.pousserToast('error', `Synchronisation ${c ? numeroAffiche(c) : op.commandeId} : ${message}`)
+function erreurAnnulation(signal: AbortSignal): unknown {
+  if (signal.reason instanceof Error) return signal.reason
+  return new DOMException('Aborted', 'AbortError')
 }
 
-async function executer(operationId: number): Promise<void> {
-  const st0 = useAppStore.getState()
-  const op = opActuelle(operationId)
-  if (!op || op.statut === 'EnCours' || op.statut === 'Synchronisee') return
-  if (!st0.sapOnline) {
-    st0.pousserToast('warning', 'SAP est hors ligne : la synchronisation est impossible pour le moment')
-    return
-  }
-  const commande = st0.commandes.find((c) => c.id === op.commandeId)
-  if (!commande) return
-  const client = st0.referentiels.clients.find((c) => c.id === commande.clientId)
-
-  st0.patchSyncOp(op.id, {
-    statut: 'EnCours',
-    tentatives: op.tentatives + 1,
-    message: undefined,
-    derniereTentativeUtc: new Date().toISOString(),
-  })
-  st0.patchCommande(commande.id, { synchro: 'EnCours' })
-
-  const restantes = op.etapes.filter((e) => !op.etapesFaites.includes(e))
-  for (const etape of restantes) {
-    useAppStore.getState().patchSyncOp(op.id, { etapeCourante: etape })
-    await attendre(DELAI_ETAPE_MS[etape])
-    const st = useAppStore.getState()
-    const courante = opActuelle(op.id)
-    if (!courante) return
-    if (!st.sapOnline) {
-      echouer(courante, etape, MESSAGE_SAP_INJOIGNABLE)
+function attendre(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(erreurAnnulation(signal))
       return
     }
-    if (etape === 'CreerCommande') {
-      if (client && st.clientsBloquesSap.includes(client.code)) {
-        echouer(courante, etape, MESSAGE_CLIENT_BLOQUE)
-        return
-      }
-      st.patchCommande(commande.id, {
-        numeroSap: padNumero(st.prochainNumero('sapCommande'), LONGUEUR_NUMERO_SAP),
-      })
+    const id = window.setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    const onAbort = () => {
+      window.clearTimeout(id)
+      reject(signal ? erreurAnnulation(signal) : new DOMException('Aborted', 'AbortError'))
     }
-    if (etape === 'LireBL') {
-      const c = st.commandes.find((x) => x.id === commande.id)
-      if (c?.bonDeLivraison) {
-        const numeroBl = padNumero(st.prochainNumero('sapBl'), LONGUEUR_NUMERO_SAP)
-        st.patchCommande(c.id, { bonDeLivraison: { ...c.bonDeLivraison, numeroSap: numeroBl } })
-      }
-    }
-    st.patchSyncOp(op.id, { etapesFaites: [...courante.etapesFaites, etape] })
-  }
+    signal?.addEventListener('abort', onAbort, { once: true })
+  })
+}
 
-  const stFin = useAppStore.getState()
-  stFin.patchSyncOp(op.id, { statut: 'Synchronisee', etapeCourante: undefined, message: undefined })
-  stFin.patchCommande(commande.id, { synchro: 'Synchronisee', statut: 'Synchronisee' })
-  const finale = stFin.commandes.find((x) => x.id === commande.id)
-  stFin.pousserToast(
-    'success',
-    `Commande ${finale ? numeroAffiche(finale) : commande.id} synchronisée — BL SAP ${finale?.bonDeLivraison?.numeroSap ?? ''}`,
-  )
+function resultatHorsLigne(): ResultatSynchronisation {
+  return { issue: 'sapHorsLigne', notification: { tone: 'warning', message: MESSAGE_SAP_HORS_LIGNE } }
+}
+
+function echouer(operation: SyncOperation, etape: EtapeSynchro, message: string): ResultatSynchronisation {
+  const commande = jeuDemo.trouverCommande(operation.commandeId)
+  jeuDemo.patcherSync(operation.id, { statut: 'Erreur', etapeCourante: etape, message })
+  if (commande) {
+    jeuDemo.patcherCommande(operation.commandeId, { synchro: 'Erreur', statut: 'ErreurSynchro' })
+  }
+  const libelle = commande ? numeroAffiche(commande) : String(operation.commandeId)
+  return { issue: 'erreur', notification: { tone: 'error', message: `Synchronisation ${libelle} : ${message}` } }
+}
+
+async function executer(operationId: number): Promise<ResultatSynchronisation> {
+  if (verrous.has(operationId)) return { issue: 'ignoree' }
+  const operation = jeuDemo.trouverSync(operationId)
+  if (!operation || operation.statut === 'EnCours' || operation.statut === 'Synchronisee') return { issue: 'ignoree' }
+  if (!useAppStore.getState().sapOnline) return resultatHorsLigne()
+  const commande = jeuDemo.trouverCommande(operation.commandeId)
+  if (!commande) return { issue: 'ignoree' }
+
+  const client = jeuDemo.referentiels().clients.find((c) => c.id === commande.clientId)
+  const generation = jeuDemo.generation()
+  verrous.add(operationId)
+
+  try {
+    jeuDemo.patcherSync(operation.id, {
+      statut: 'EnCours',
+      tentatives: operation.tentatives + 1,
+      message: undefined,
+      derniereTentativeUtc: new Date().toISOString(),
+    })
+    jeuDemo.patcherCommande(commande.id, { synchro: 'EnCours' })
+
+    const restantes = operation.etapes.filter((etape) => !operation.etapesFaites.includes(etape))
+    for (const etape of restantes) {
+      jeuDemo.patcherSync(operation.id, { etapeCourante: etape })
+      await attendre(DELAI_ETAPE_MS[etape])
+      if (jeuDemo.generation() !== generation) return { issue: 'ignoree' }
+      const courante = jeuDemo.trouverSync(operation.id)
+      if (!courante) return { issue: 'ignoree' }
+      if (!useAppStore.getState().sapOnline) return echouer(courante, etape, MESSAGE_SAP_INJOIGNABLE)
+      if (etape === 'CreerCommande') {
+        if (client && jeuDemo.clientsBloques().includes(client.code)) {
+          return echouer(courante, etape, MESSAGE_CLIENT_BLOQUE)
+        }
+        jeuDemo.patcherCommande(commande.id, {
+          numeroSap: padNumero(jeuDemo.prendreNumero('sapCommande'), LONGUEUR_NUMERO_SAP),
+        })
+      }
+      if (etape === 'LireBL') {
+        const actuelle = jeuDemo.trouverCommande(commande.id)
+        if (actuelle?.bonDeLivraison) {
+          const numeroBl = padNumero(jeuDemo.prendreNumero('sapBl'), LONGUEUR_NUMERO_SAP)
+          jeuDemo.patcherCommande(actuelle.id, {
+            bonDeLivraison: { ...actuelle.bonDeLivraison, numeroSap: numeroBl },
+          })
+        }
+      }
+      const apres = jeuDemo.trouverSync(operation.id)
+      if (!apres) return { issue: 'ignoree' }
+      jeuDemo.patcherSync(operation.id, { etapesFaites: [...apres.etapesFaites, etape] })
+    }
+
+    if (jeuDemo.generation() !== generation) return { issue: 'ignoree' }
+    jeuDemo.patcherSync(operation.id, { statut: 'Synchronisee', etapeCourante: undefined, message: undefined })
+    jeuDemo.patcherCommande(commande.id, { synchro: 'Synchronisee', statut: 'Synchronisee' })
+    const finale = jeuDemo.trouverCommande(commande.id)
+    const libelle = finale ? numeroAffiche(finale) : String(commande.id)
+    return {
+      issue: 'succes',
+      notification: {
+        tone: 'success',
+        message: `Commande ${libelle} synchronisée — BL SAP ${finale?.bonDeLivraison?.numeroSap ?? ''}`,
+      },
+    }
+  } finally {
+    verrous.delete(operationId)
+  }
 }
 
 export const mockSyncService: SyncService = {
-  async ping(): Promise<PingSap> {
-    await attendre(DELAI_PING_MS)
+  async operations(options) {
+    verifierSignal(options?.signal)
+    return jeuDemo.syncOps()
+  },
+
+  async clientsBloques(options) {
+    verifierSignal(options?.signal)
+    return jeuDemo.clientsBloques()
+  },
+
+  async ping(options): Promise<PingSap> {
+    await attendre(DELAI_PING_MS, options?.signal)
     const enLigne = useAppStore.getState().sapOnline
     return enLigne
       ? { enLigne, latenceMs: LATENCE_SAP_BASE_MS + Math.round(Math.random() * LATENCE_SAP_GIGUE_MS) }
@@ -101,22 +157,19 @@ export const mockSyncService: SyncService = {
   synchroniser: executer,
 
   async toutSynchroniser() {
-    const st = useAppStore.getState()
-    if (!st.sapOnline) {
-      st.pousserToast('warning', 'SAP est hors ligne : la synchronisation est impossible pour le moment')
-      return
+    if (!useAppStore.getState().sapOnline) return [resultatHorsLigne()]
+    const identifiants = jeuDemo
+      .syncOps()
+      .filter((operation) => operation.statut === 'EnAttente' || operation.statut === 'Erreur')
+      .map((operation) => operation.id)
+    const resultats: ResultatSynchronisation[] = []
+    for (const id of identifiants) {
+      resultats.push(await executer(id))
     }
-    const aTraiter = st.syncOps
-      .filter((o) => o.statut === 'EnAttente' || o.statut === 'Erreur')
-      .map((o) => o.id)
-    for (const id of aTraiter) {
-      await executer(id)
-    }
+    return resultats
   },
 
-  simulerDeblocageClient(codeClient: string) {
-    const st = useAppStore.getState()
-    st.debloquerClientSap(codeClient)
-    st.pousserToast('info', `Blocage crédit levé côté SAP pour le client ${codeClient} (simulation)`)
+  async simulerDeblocageClient(codeClient: string) {
+    jeuDemo.debloquerClient(codeClient)
   },
 }

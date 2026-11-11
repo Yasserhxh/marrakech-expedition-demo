@@ -1,7 +1,7 @@
 import clsx from 'clsx'
 import { FiChevronDown, FiChevronUp, FiRotateCcw, FiSliders } from 'react-icons/fi'
+import { reinitialiserDemonstration } from '@/app/reinitialiserDemo'
 import { useAppStore } from '@/store/useAppStore'
-import { services } from '@/services'
 import type { Role } from '@/types'
 import { ROLE_LABELS } from '@/types'
 
@@ -14,12 +14,10 @@ export function DemoBar() {
   const setSapOnline = useAppStore((s) => s.setSapOnline)
   const role = useAppStore((s) => s.role)
   const setRole = useAppStore((s) => s.setRole)
-  const reinitialiser = useAppStore((s) => s.reinitialiser)
   const pousserToast = useAppStore((s) => s.pousserToast)
 
   const reset = () => {
-    services.pesee.arreterSimulation()
-    reinitialiser()
+    if (!reinitialiserDemonstration()) return
     pousserToast('info', 'Données de démonstration réinitialisées')
   }
 

@@ -1,6 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { App } from '@/app/App'
+import { QueryProvider } from '@/app/providers/QueryProvider'
 import '@/styles/tokens.scss'
 import '@/styles/global.scss'
 import '@/styles/components.scss'
@@ -11,6 +12,8 @@ if (!racine) throw new Error('Élément #root introuvable')
 
 ReactDOM.createRoot(racine).render(
   <React.StrictMode>
-    <App />
+    <QueryProvider>
+      <App />
+    </QueryProvider>
   </React.StrictMode>,
 )

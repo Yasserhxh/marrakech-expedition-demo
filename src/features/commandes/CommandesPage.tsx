@@ -5,11 +5,16 @@ import { PageShell } from '@/components/PageShell'
 import { KpiCard } from '@/components/KpiCard'
 import { DataTable, type Column } from '@/components/DataTable'
 import { EmptyState } from '@/components/EmptyState'
+import { Notice } from '@/components/Notice'
 import { OrigineBadge, StatutBadge, SynchroBadge } from '@/components/StatusBadge'
+import { useCommandes } from '@/features/commandes/hooks/useCommandes'
+import { useReferentielLookup } from '@/features/referentiels/hooks/useReferentiels'
 import { CommandeDrawer } from './CommandeDrawer'
-import { useAppStore, useReferentielLookup, numeroAffiche } from '@/store/useAppStore'
+import { useAppStore } from '@/store/useAppStore'
 import type { Commande, Origine, StatutCommande } from '@/types'
 import { INCOTERM_LABELS, STATUT_LABELS } from '@/types'
+import { numeroAffiche } from '@/utils/commande'
+import { messageErreur } from '@/utils/erreurs'
 import { formatTonnes } from '@/utils/format'
 
 type Groupe = 'tous' | 'aPeser' | 'usine' | 'livrees' | 'synchro'
@@ -33,7 +38,7 @@ const STATUTS: StatutCommande[] = [
 ]
 
 export function CommandesPage() {
-  const commandes = useAppStore((s) => s.commandes)
+  const { data: commandes = [], isError, error } = useCommandes()
   const sapOnline = useAppStore((s) => s.sapOnline)
   const r = useReferentielLookup()
   const [recherche, setRecherche] = useState('')
@@ -170,6 +175,7 @@ export function CommandesPage() {
       }
       actions={boutonNouvelle}
     >
+      {isError ? <Notice tone="danger">{messageErreur(error)}</Notice> : null}
       <div className="kpi-row">
         <KpiCard
           title="À peser"

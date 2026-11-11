@@ -8,8 +8,13 @@ import { DocumentPreview } from '@/components/DocumentPreview'
 import { EmptyState } from '@/components/EmptyState'
 import { Notice } from '@/components/Notice'
 import { StatutBadge } from '@/components/StatusBadge'
+import { useCommande } from '@/features/commandes/hooks/useCommandes'
+import { useAutoriserSecondPesage, useValiderBrut } from '@/features/commandes/hooks/useCommandeMutations'
+import { useReferentielLookup } from '@/features/referentiels/hooks/useReferentiels'
 import { services } from '@/services'
-import { useAppStore, useReferentielLookup, numeroAffiche } from '@/store/useAppStore'
+import { useAppStore } from '@/store/useAppStore'
+import type { Commande } from '@/types'
+import { numeroAffiche } from '@/utils/commande'
 import { ABSENT, formatKg, formatNombre, formatPourcentage, formatTonnes } from '@/utils/format'
 
 const KG_PAR_TONNE = 1000
@@ -35,18 +40,29 @@ const LIBELLE_TONE: Record<Tone, string> = {
 export function PeseeSortiePage() {
   const { id } = useParams()
   const commandeId = Number(id)
-  const commande = useAppStore((s) => s.commandes.find((c) => c.id === commandeId))
+  const { data: commandeChargee, isPending } = useCommande(Number.isFinite(commandeId) ? commandeId : null)
+  const [confirmee, setConfirmee] = useState<Commande | null>(null)
+  const commande = confirmee ?? commandeChargee ?? null
   const poids = useAppStore((s) => s.poids)
   const sapOnline = useAppStore((s) => s.sapOnline)
-  const pousserToast = useAppStore((s) => s.pousserToast)
+  const validerBrut = useValiderBrut()
+  const autoriser = useAutoriserSecondPesage()
   const r = useReferentielLookup()
 
   const tareKg = commande?.peseeEntree?.poidsKg ?? 0
   const commandeKg = (commande?.quantiteT ?? 0) * KG_PAR_TONNE
-  const [cible, setCible] = useState<number>(Math.round(tareKg + commandeKg * (1 + ECART_SIMULE_PAR_DEFAUT)))
-  const [blEmis, setBlEmis] = useState(false)
+  const [cibleSaisie, setCibleSaisie] = useState<number | null>(null)
+  const cible = cibleSaisie ?? Math.round(tareKg + commandeKg * (1 + ECART_SIMULE_PAR_DEFAUT))
 
   useEffect(() => () => services.pesee.arreterSimulation(), [])
+
+  if (isPending && !commande) {
+    return (
+      <PageShell title="Pesée de sortie">
+        <p className="text-muted">Chargement…</p>
+      </PageShell>
+    )
+  }
 
   if (!commande) {
     return (
@@ -78,12 +94,7 @@ export function PeseeSortiePage() {
   const tone = toneEcart(ratio)
 
   const valider = () => {
-    try {
-      services.pesee.validerBrut(commande.id)
-      setBlEmis(true)
-    } catch (e) {
-      pousserToast('error', e instanceof Error ? e.message : 'Validation impossible')
-    }
+    validerBrut.mutate(commande.id, { onSuccess: (suivante) => setConfirmee(suivante) })
   }
 
   const entete = (
@@ -120,28 +131,29 @@ export function PeseeSortiePage() {
     </div>
   )
 
-  if (blEmis && commande.bonDeLivraison) {
+  if (confirmee?.bonDeLivraison) {
+    const bon = confirmee.bonDeLivraison
     return (
       <PageShell
         title="Bon de livraison"
         subtitle={
-          commande.bonDeLivraison.numeroSap
-            ? `BL SAP ${commande.bonDeLivraison.numeroSap} — commande livrée`
+          bon.numeroSap
+            ? `BL SAP ${bon.numeroSap} — commande livrée`
             : 'BL provisoire — commande livrée, synchronisation SAP en attente'
         }
       >
         {entete}
-        {!commande.bonDeLivraison.numeroSap ? (
+        {!bon.numeroSap ? (
           <Notice tone="warning">
             Le numéro SAP sera attribué lors de la synchronisation ; vous pourrez alors réimprimer le BL définitif depuis
             la page « Synchronisation SAP ».
           </Notice>
         ) : null}
         <div className="admin-card">
-          <DocumentPreview type="BL" commande={commande} />
+          <DocumentPreview type="BL" commande={confirmee} />
         </div>
         <div className="btn-row" style={{ justifyContent: 'center' }}>
-          {commande.synchro === 'EnAttente' ? (
+          {confirmee.synchro === 'EnAttente' ? (
             <Link to="/synchronisation" className="btn-primary btn-lg">
               Terminer — voir la synchronisation SAP <FiArrowRight aria-hidden="true" />
             </Link>
@@ -180,7 +192,8 @@ export function PeseeSortiePage() {
                 <button
                   type="button"
                   className="btn-primary"
-                  onClick={() => services.commandes.autoriserSecondPesage(commande.id)}
+                  disabled={autoriser.isPending}
+                  onClick={() => autoriser.mutate(commande.id)}
                 >
                   <FiCheck aria-hidden="true" /> Autoriser le 2ᵉ pesage (guichet)
                 </button>
@@ -228,7 +241,7 @@ export function PeseeSortiePage() {
           </div>
 
           <div style={{ marginTop: 16 }}>
-            <button type="button" className="btn-primary btn-lg btn-block" disabled={!poids.stable} onClick={valider}>
+            <button type="button" className="btn-primary btn-lg btn-block" disabled={!poids.stable || validerBrut.isPending} onClick={valider}>
               <FiCheck aria-hidden="true" /> Valider et imprimer le Bon de livraison
             </button>
             {!poids.stable ? (
@@ -255,7 +268,7 @@ export function PeseeSortiePage() {
                 min={2000}
                 step={10}
                 value={cible}
-                onChange={(e) => setCible(Number(e.target.value))}
+                onChange={(e) => setCibleSaisie(Number(e.target.value))}
               />
               <span className="form-help">
                 Tare {formatKg(tareKg)} + commandé {formatKg(commandeKg)} — modifiez la valeur pour montrer un écart orange

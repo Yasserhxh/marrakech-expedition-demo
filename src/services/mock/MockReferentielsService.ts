@@ -1,6 +1,7 @@
 import type { NouvelElement, ReferentielsService } from '@/services/types'
-import { useAppStore } from '@/store/useAppStore'
-import type { ReferentielKind, Referentiels } from '@/types'
+import { jeuDemo } from '@/services/mock/jeuDemo'
+import { verifierSignal } from '@/services/mock/signal'
+import type { ReferentielKind } from '@/types'
 
 const PREFIXES: Record<ReferentielKind, string> = {
   clients: 'c',
@@ -12,12 +13,14 @@ const PREFIXES: Record<ReferentielKind, string> = {
 }
 
 export const mockReferentielsService: ReferentielsService = {
-  ajouter<K extends ReferentielKind>(kind: K, element: NouvelElement<K>) {
-    const st = useAppStore.getState()
-    const liste = st.referentiels[kind] as Referentiels[K]
+  async lister(options) {
+    verifierSignal(options?.signal)
+    return jeuDemo.referentiels()
+  },
+
+  async ajouter<K extends ReferentielKind>(kind: K, element: NouvelElement<K>) {
+    const liste = jeuDemo.referentiels()[kind]
     const id = `${PREFIXES[kind]}${liste.length + 1}-${Date.now().toString(36)}`
-    const nouveau = { ...element, id } as Referentiels[K][number]
-    st.setReferentiels({ ...st.referentiels, [kind]: [...liste, nouveau] })
-    st.pousserToast('success', 'Élément ajouté au référentiel (mémoire uniquement)')
+    jeuDemo.ajouterReferentiel(kind, { ...element, id })
   },
 }

@@ -10,6 +10,7 @@ import {
   FiRefreshCw,
   FiTruck,
 } from 'react-icons/fi'
+import { useNombreSyncEnAttente } from '@/features/synchronisation/hooks/useSynchronisation'
 import { useAppStore } from '@/store/useAppStore'
 import type { Role } from '@/types'
 import { ROLE_LABELS } from '@/types'
@@ -98,9 +99,7 @@ export function AdminSidebar() {
   const role = useAppStore((s) => s.role)
   const utilisateur = useAppStore((s) => s.utilisateur)
   const deconnecter = useAppStore((s) => s.deconnecter)
-  const enAttenteSynchro = useAppStore(
-    (s) => s.syncOps.filter((o) => o.statut === 'EnAttente' || o.statut === 'Erreur').length,
-  )
+  const { data: enAttenteSynchro = 0 } = useNombreSyncEnAttente()
 
   const estActif = (item: MenuItem) =>
     location.pathname === item.to ||

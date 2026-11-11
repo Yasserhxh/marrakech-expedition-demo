@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react-swc'
 
 export default defineConfig({
@@ -11,4 +11,9 @@ export default defineConfig({
   },
   server: { port: 5174 },
   preview: { port: 4174 },
+  test: {
+    environment: 'jsdom',
+    setupFiles: './src/test/setup.ts',
+    css: false,
+  },
 })

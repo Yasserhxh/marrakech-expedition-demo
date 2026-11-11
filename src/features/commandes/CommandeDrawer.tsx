@@ -6,9 +6,15 @@ import { Modal } from '@/components/Modal'
 import { Notice } from '@/components/Notice'
 import { DocumentPreview } from '@/components/DocumentPreview'
 import { ConditionnementBadge, OrigineBadge, StatutBadge, SynchroBadge } from '@/components/StatusBadge'
-import { services } from '@/services'
-import { useAppStore, useReferentielLookup, numeroAffiche } from '@/store/useAppStore'
+import { useCommande } from '@/features/commandes/hooks/useCommandes'
+import {
+  useAnnulerCommande,
+  useAutoriserPesee,
+  useAutoriserSecondPesage,
+} from '@/features/commandes/hooks/useCommandeMutations'
+import { useReferentielLookup } from '@/features/referentiels/hooks/useReferentiels'
 import { INCOTERM_LABELS } from '@/types'
+import { numeroAffiche } from '@/utils/commande'
 import { ABSENT, formatDateTime, formatKg, formatNombre, formatTonnes } from '@/utils/format'
 
 interface CommandeDrawerProps {
@@ -17,8 +23,10 @@ interface CommandeDrawerProps {
 }
 
 export function CommandeDrawer({ commandeId, onClose }: CommandeDrawerProps) {
-  const commande = useAppStore((s) => s.commandes.find((c) => c.id === commandeId))
-  const pousserToast = useAppStore((s) => s.pousserToast)
+  const { data: commande } = useCommande(commandeId)
+  const autoriserEntree = useAutoriserPesee()
+  const autoriserSortie = useAutoriserSecondPesage()
+  const annulerCommande = useAnnulerCommande()
   const r = useReferentielLookup()
   const navigate = useNavigate()
   const [apercu, setApercu] = useState<'BC' | 'BL' | null>(null)
@@ -33,14 +41,6 @@ export function CommandeDrawer({ commandeId, onClose }: CommandeDrawerProps) {
   const camion = r.camion(commande.camionId)
   const chauffeur = r.chauffeur(commande.chauffeurId)
 
-  const executer = (action: () => void) => {
-    try {
-      action()
-    } catch (e) {
-      pousserToast('error', e instanceof Error ? e.message : 'Action impossible')
-    }
-  }
-
   const annulable = !commande.bonDeLivraison && commande.statut !== 'Annulee'
 
   const actions = (
@@ -49,7 +49,8 @@ export function CommandeDrawer({ commandeId, onClose }: CommandeDrawerProps) {
         <button
           type="button"
           className="btn-primary btn-block"
-          onClick={() => executer(() => services.commandes.autoriserPesee(commande.id))}
+          disabled={autoriserEntree.isPending}
+          onClick={() => autoriserEntree.mutate(commande.id)}
         >
           <FiLogIn aria-hidden="true" /> Autoriser la pesée d'entrée
         </button>
@@ -63,7 +64,8 @@ export function CommandeDrawer({ commandeId, onClose }: CommandeDrawerProps) {
         <button
           type="button"
           className="btn-primary btn-block"
-          onClick={() => executer(() => services.commandes.autoriserSecondPesage(commande.id))}
+          disabled={autoriserSortie.isPending}
+          onClick={() => autoriserSortie.mutate(commande.id)}
         >
           <FiLogOut aria-hidden="true" /> Autoriser le 2ᵉ pesage
         </button>
@@ -252,7 +254,7 @@ export function CommandeDrawer({ commandeId, onClose }: CommandeDrawerProps) {
               type="button"
               className="btn-danger"
               onClick={() => {
-                executer(() => services.commandes.annuler(commande.id))
+                annulerCommande.mutate(commande.id)
                 setConfirmerAnnulation(false)
                 onClose()
               }}

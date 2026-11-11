@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { FiAlertTriangle, FiCheckCircle, FiClock, FiPrinter, FiRefreshCw, FiUnlock, FiWifi, FiWifiOff } from 'react-icons/fi'
 import { PageShell } from '@/components/PageShell'
 import { KpiCard } from '@/components/KpiCard'
@@ -9,9 +9,20 @@ import { Notice } from '@/components/Notice'
 import { DocumentPreview } from '@/components/DocumentPreview'
 import { SynchroBadge } from '@/components/StatusBadge'
 import { SyncSteps } from '@/components/SyncSteps'
-import { services, type PingSap } from '@/services'
-import { useAppStore, useReferentielLookup, numeroAffiche } from '@/store/useAppStore'
+import { useCommandes } from '@/features/commandes/hooks/useCommandes'
+import { useReferentielLookup } from '@/features/referentiels/hooks/useReferentiels'
+import {
+  useClientsBloques,
+  useDeblocageClient,
+  usePingSap,
+  useSyncOperations,
+  useSynchroniser,
+  useToutSynchroniser,
+} from '@/features/synchronisation/hooks/useSynchronisation'
+import { useAppStore } from '@/store/useAppStore'
 import type { Commande, SyncOperation } from '@/types'
+import { numeroAffiche } from '@/utils/commande'
+import { messageErreur } from '@/utils/erreurs'
 import { ABSENT, formatDateTime, formatHeure } from '@/utils/format'
 
 interface Ligne {
@@ -21,28 +32,15 @@ interface Ligne {
 
 export function SynchronisationPage() {
   const sapOnline = useAppStore((s) => s.sapOnline)
-  const syncOps = useAppStore((s) => s.syncOps)
-  const commandes = useAppStore((s) => s.commandes)
-  const clientsBloques = useAppStore((s) => s.clientsBloquesSap)
+  const { data: syncOps = [] } = useSyncOperations()
+  const { data: commandes = [] } = useCommandes()
+  const { data: clientsBloques = [] } = useClientsBloques()
   const r = useReferentielLookup()
-  const [ping, setPing] = useState<PingSap | null>(null)
-  const [pingEnCours, setPingEnCours] = useState(false)
-  const [pingUtc, setPingUtc] = useState<string | null>(null)
-  const [toutEnCours, setToutEnCours] = useState(false)
+  const ping = usePingSap()
+  const synchroniser = useSynchroniser()
+  const tout = useToutSynchroniser()
+  const deblocage = useDeblocageClient()
   const [blAReimprimer, setBlAReimprimer] = useState<Commande | null>(null)
-
-  const tester = async () => {
-    setPingEnCours(true)
-    const res = await services.sync.ping()
-    setPing(res)
-    setPingUtc(new Date().toISOString())
-    setPingEnCours(false)
-  }
-
-  useEffect(() => {
-    void tester()
-    // On re-teste automatiquement lorsque l'état SAP change (barre de démo).
-  }, [sapOnline])
 
   const lignes: Ligne[] = syncOps
     .map((op) => ({ op, commande: commandes.find((c) => c.id === op.commandeId) }))
@@ -59,11 +57,7 @@ export function SynchronisationPage() {
     (c) => c.origine === 'Locale' && !c.bonDeLivraison && c.statut !== 'Annulee',
   ).length
 
-  const toutSynchroniser = async () => {
-    setToutEnCours(true)
-    await services.sync.toutSynchroniser()
-    setToutEnCours(false)
-  }
+  const toutSynchroniser = () => tout.mutate()
 
   const colonnes: Column<Ligne>[] = [
     {
@@ -136,7 +130,8 @@ export function SynchronisationPage() {
                 type="button"
                 className="btn-link"
                 style={{ fontSize: 12 }}
-                onClick={() => client && services.sync.simulerDeblocageClient(client.code)}
+                onClick={() => client && deblocage.mutate(client.code)}
+                disabled={deblocage.isPending}
               >
                 <FiUnlock aria-hidden="true" /> Simuler le déblocage du client dans SAP (démo)
               </button>
@@ -154,8 +149,8 @@ export function SynchronisationPage() {
             <button
               type="button"
               className="btn-action btn-sm"
-              disabled={!sapOnline || toutEnCours}
-              onClick={() => void services.sync.synchroniser(op.id)}
+              disabled={!sapOnline || tout.isPending || (synchroniser.isPending && synchroniser.variables === op.id)}
+              onClick={() => synchroniser.mutate(op.id)}
             >
               <FiRefreshCw aria-hidden="true" /> Synchroniser
             </button>
@@ -164,8 +159,8 @@ export function SynchronisationPage() {
             <button
               type="button"
               className="btn-primary btn-sm"
-              disabled={!sapOnline || toutEnCours}
-              onClick={() => void services.sync.synchroniser(op.id)}
+              disabled={!sapOnline || tout.isPending || (synchroniser.isPending && synchroniser.variables === op.id)}
+              onClick={() => synchroniser.mutate(op.id)}
             >
               <FiRefreshCw aria-hidden="true" /> Réessayer
             </button>
@@ -188,18 +183,18 @@ export function SynchronisationPage() {
       subtitle="File des opérations à rejouer vers SAP : création de commande, livraison, lecture du numéro de BL"
       actions={
         <>
-          <button type="button" className="btn-ghost" onClick={() => void tester()} disabled={pingEnCours}>
-            <FiWifi aria-hidden="true" /> {pingEnCours ? 'Test en cours…' : 'Tester la connexion SAP'}
+          <button type="button" className="btn-ghost" onClick={() => void ping.refetch()} disabled={ping.isFetching}>
+            <FiWifi aria-hidden="true" /> {ping.isFetching ? 'Test en cours…' : 'Tester la connexion SAP'}
           </button>
           <span title={!sapOnline ? 'SAP est hors ligne : impossible de synchroniser' : undefined}>
             <button
               type="button"
               className="btn-primary"
-              disabled={!sapOnline || toutEnCours || aSynchroniser === 0}
+              disabled={!sapOnline || tout.isPending || aSynchroniser === 0}
               onClick={() => void toutSynchroniser()}
             >
               <FiRefreshCw aria-hidden="true" />
-              {toutEnCours ? 'Synchronisation en cours…' : `Tout synchroniser (${aSynchroniser})`}
+              {tout.isPending ? 'Synchronisation en cours…' : `Tout synchroniser (${aSynchroniser})`}
             </button>
           </span>
         </>
@@ -209,14 +204,16 @@ export function SynchronisationPage() {
         <div className="admin-card__head">
           <h2>État de la connexion SAP</h2>
           <span className="text-muted" style={{ fontSize: 13 }}>
-            Dernier test : {pingUtc ? formatDateTime(pingUtc) : '—'}
+            Dernier test : {ping.dataUpdatedAt ? formatDateTime(new Date(ping.dataUpdatedAt).toISOString()) : '—'}
           </span>
         </div>
-        {ping === null ? (
+        {ping.isPending ? (
           <p className="text-muted">Test en cours…</p>
-        ) : ping.enLigne ? (
+        ) : ping.isError ? (
+          <Notice tone="danger">{messageErreur(ping.error) || 'Test de connexion impossible'}</Notice>
+        ) : ping.data?.enLigne ? (
           <Notice tone="success">
-            <strong>SAP joignable</strong> — SAP ECC (PRD), latence {ping.latenceMs} ms. Les opérations en
+            <strong>SAP joignable</strong> — SAP ECC (PRD), latence {ping.data.latenceMs} ms. Les opérations en
             attente peuvent être synchronisées.
           </Notice>
         ) : (

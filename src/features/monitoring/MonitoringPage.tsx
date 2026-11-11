@@ -1,19 +1,25 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import clsx from 'clsx'
 import { FiActivity, FiAlertTriangle, FiExternalLink, FiRadio, FiSearch, FiZap } from 'react-icons/fi'
 import { PageShell } from '@/components/PageShell'
 import { KpiCard } from '@/components/KpiCard'
 import { DataTable, type Column } from '@/components/DataTable'
-import { buildMonitoring } from '@/data/mock'
-import { useAppStore } from '@/store/useAppStore'
+import { useMonitoring } from '@/features/monitoring/hooks/useMonitoring'
 import type { MonitoringErreur } from '@/types'
+import { messageErreur } from '@/utils/erreurs'
 import { formatHeure } from '@/utils/format'
 
 export function MonitoringPage() {
-  const sapOnline = useAppStore((s) => s.sapOnline)
-  const chargeeLeUtc = useAppStore((s) => s.chargeeLeUtc)
-  const snapshot = useMemo(() => buildMonitoring(new Date(chargeeLeUtc), sapOnline), [chargeeLeUtc, sapOnline])
+  const { data: snapshot, isError, error } = useMonitoring()
   const [recherche, setRecherche] = useState('')
+
+  if (!snapshot) {
+    return (
+      <PageShell title="Monitoring" subtitle="Santé de l'API Marrakech, dépendances et erreurs récentes (données simulées)">
+        <p className="text-muted">{isError ? messageErreur(error) : 'Chargement…'}</p>
+      </PageShell>
+    )
+  }
 
   const erreurs = snapshot.erreurs.filter((e) => {
     const q = recherche.trim().toLowerCase()

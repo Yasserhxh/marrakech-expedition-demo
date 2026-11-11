@@ -1,5 +1,6 @@
 import type { PeseeService } from '@/services/types'
-import { useAppStore, numeroAffiche } from '@/store/useAppStore'
+import { jeuDemo } from '@/services/mock/jeuDemo'
+import { useAppStore, type PoidsState } from '@/store/useAppStore'
 import type { Commande, EtapeSynchro, Pont } from '@/types'
 import { bcNumero } from '@/data/mock'
 import { padNumero } from '@/utils/format'
@@ -19,6 +20,18 @@ let minuteur: number | undefined
 let lecturesIdentiques = 0
 let derniereValeur = -1
 
+/**
+ * Lecture transitoire du pont : état d'interface, pas une donnée confirmée.
+ * Elle reste dans le store client et n'entre pas dans le cache des commandes.
+ */
+function poids(): PoidsState {
+  return useAppStore.getState().poids
+}
+
+function majPoids(patch: Partial<PoidsState>) {
+  useAppStore.getState().setPoids(patch)
+}
+
 function arreter() {
   if (minuteur !== undefined) {
     window.clearInterval(minuteur)
@@ -29,25 +42,25 @@ function arreter() {
 }
 
 function exigerPesee(commandeId: number): Commande {
-  const st = useAppStore.getState()
-  const c = st.commandes.find((x) => x.id === commandeId)
-  if (!c) throw new Error(`Commande ${commandeId} introuvable`)
-  if (!st.poids.stable) throw new Error('Le poids n’est pas stable : validation refusée')
-  if (st.poids.lectureKg < SEUIL_STABLE_KG) throw new Error('Aucun camion sur le pont')
-  return c
+  const commande = jeuDemo.trouverCommande(commandeId)
+  if (!commande) throw new Error(`Commande ${commandeId} introuvable`)
+  const lecture = poids()
+  if (!lecture.stable) throw new Error('Le poids n’est pas stable : validation refusée')
+  if (lecture.lectureKg < SEUIL_STABLE_KG) throw new Error('Aucun camion sur le pont')
+  return commande
 }
 
 export const mockPeseeService: PeseeService = {
   selectionnerPont(pont: Pont) {
     arreter()
-    useAppStore.getState().setPoids({ pont, lectureKg: 0, stable: false, enCours: false })
+    majPoids({ pont, lectureKg: 0, stable: false, enCours: false })
   },
 
   simulerCamion(cibleKg: number) {
     arreter()
     const cible = Math.max(0, Math.round(cibleKg))
     let pas = 0
-    useAppStore.getState().setPoids({ enCours: true, stable: false, lectureKg: 0, connecte: true })
+    majPoids({ enCours: true, stable: false, lectureKg: 0, connecte: true })
     minuteur = window.setInterval(() => {
       pas += 1
       let valeur: number
@@ -60,59 +73,58 @@ export const mockPeseeService: PeseeService = {
       lecturesIdentiques = valeur === derniereValeur ? lecturesIdentiques + 1 : 1
       derniereValeur = valeur
       const stable = lecturesIdentiques >= LECTURES_IDENTIQUES_POUR_STABLE && valeur >= SEUIL_STABLE_KG
-      useAppStore
-        .getState()
-        .setPoids({ lectureKg: valeur, stable, derniereLectureUtc: new Date().toISOString() })
+      majPoids({ lectureKg: valeur, stable, derniereLectureUtc: new Date().toISOString() })
     }, PERIODE_MS)
   },
 
   arreterSimulation() {
     arreter()
-    useAppStore.getState().setPoids({ enCours: false, stable: false, lectureKg: 0 })
+    majPoids({ enCours: false, stable: false, lectureKg: 0 })
   },
 
-  validerTare(commandeId) {
-    const c = exigerPesee(commandeId)
-    if (c.statut !== 'EntreeAutorisee')
+  async validerTare(commandeId) {
+    const commande = exigerPesee(commandeId)
+    if (commande.statut !== 'EntreeAutorisee') {
       throw new Error('La pesée d’entrée n’est pas autorisée pour cette commande')
-    const st = useAppStore.getState()
+    }
+    const lecture = poids()
     const maintenant = new Date().toISOString()
-    const numero = bcNumero(st.prochainNumero('bc'), new Date().getFullYear())
+    const numero = bcNumero(jeuDemo.prendreNumero('bc'), new Date().getFullYear())
     const patch: Partial<Commande> = {
       statut: 'DansUsine',
       entreeUtc: maintenant,
       peseeEntree: {
         type: 'Entree',
-        pont: st.poids.pont,
-        poidsKg: st.poids.lectureKg,
+        pont: lecture.pont,
+        poidsKg: lecture.lectureKg,
         horodatageUtc: maintenant,
       },
       bonDeChargement: { numero, dateUtc: maintenant },
     }
-    st.patchCommande(c.id, patch)
+    const suivante = jeuDemo.patcherCommande(commande.id, patch)
     this.arreterSimulation()
-    st.pousserToast('success', `Tare validée — Bon de chargement ${numero} émis`)
-    return { ...c, ...patch }
+    return suivante
   },
 
-  validerBrut(commandeId) {
-    const c = exigerPesee(commandeId)
-    if (c.statut !== 'SortieAutorisee' || !c.peseeEntree) {
+  async validerBrut(commandeId) {
+    const commande = exigerPesee(commandeId)
+    if (commande.statut !== 'SortieAutorisee' || !commande.peseeEntree) {
       throw new Error('Le second pesage n’est pas autorisé pour cette commande')
     }
-    const st = useAppStore.getState()
+    const lecture = poids()
     const maintenant = new Date().toISOString()
-    const brutKg = st.poids.lectureKg
-    const tareKg = c.peseeEntree.poidsKg
-    const blDirectSap = c.origine === 'Sap' && st.sapOnline
-    const numeroSapBl = blDirectSap ? padNumero(st.prochainNumero('sapBl'), LONGUEUR_NUMERO_SAP) : undefined
+    const brutKg = lecture.lectureKg
+    const tareKg = commande.peseeEntree.poidsKg
+    const sapEnLigne = useAppStore.getState().sapOnline
+    const blDirectSap = commande.origine === 'Sap' && sapEnLigne
+    const numeroSapBl = blDirectSap ? padNumero(jeuDemo.prendreNumero('sapBl'), LONGUEUR_NUMERO_SAP) : undefined
 
     let synchro: Commande['synchro'] = 'Aucune'
     let etapes: EtapeSynchro[] = []
-    if (c.origine === 'Locale') {
+    if (commande.origine === 'Locale') {
       synchro = 'EnAttente'
       etapes = ['CreerCommande', 'Livraison', 'LireBL']
-    } else if (!st.sapOnline) {
+    } else if (!sapEnLigne) {
       synchro = 'EnAttente'
       etapes = ['Livraison', 'LireBL']
     }
@@ -121,9 +133,9 @@ export const mockPeseeService: PeseeService = {
       statut: 'Livree',
       synchro,
       sortieUtc: maintenant,
-      peseeSortie: { type: 'Sortie', pont: st.poids.pont, poidsKg: brutKg, horodatageUtc: maintenant },
+      peseeSortie: { type: 'Sortie', pont: lecture.pont, poidsKg: brutKg, horodatageUtc: maintenant },
       bonDeLivraison: {
-        numeroProvisoire: c.numeroSap ?? c.id.toString(),
+        numeroProvisoire: commande.numeroSap ?? commande.id.toString(),
         numeroSap: numeroSapBl,
         dateUtc: maintenant,
         brutKg,
@@ -131,11 +143,11 @@ export const mockPeseeService: PeseeService = {
         netKg: brutKg - tareKg,
       },
     }
-    st.patchCommande(c.id, patch)
+    const suivante = jeuDemo.patcherCommande(commande.id, patch)
     if (etapes.length > 0) {
-      st.upsertSyncOp({
-        id: st.prochainNumero('syncOp'),
-        commandeId: c.id,
+      jeuDemo.insererSync({
+        id: jeuDemo.prendreNumero('syncOp'),
+        commandeId: commande.id,
         etapes,
         etapesFaites: [],
         statut: 'EnAttente',
@@ -143,12 +155,6 @@ export const mockPeseeService: PeseeService = {
       })
     }
     this.arreterSimulation()
-    st.pousserToast(
-      'success',
-      numeroSapBl
-        ? `BL SAP ${numeroSapBl} émis pour ${numeroAffiche(c)}`
-        : `BL provisoire émis pour ${numeroAffiche(c)} — en attente de synchronisation SAP`,
-    )
-    return { ...c, ...patch }
+    return suivante
   },
 }
