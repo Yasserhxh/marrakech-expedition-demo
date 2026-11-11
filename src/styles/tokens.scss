@@ -1,0 +1,118 @@
+/* Charte Ecare / CIMAR — source : docs/brand/brand-tokens.md (2026-11-11).
+   Seul fichier autorisé à contenir des valeurs hexadécimales. */
+:root {
+  /* Couleurs de marque */
+  --cimar-sidebar: #063b2b;
+  --cimar-brand: #004e2b;
+  --cimar-brand-hover: #00331b;
+  --cimar-action: #0b6b3e;
+  --cimar-action-hover: #0d7a47;
+  --cimar-action-soft: rgba(11, 107, 62, 0.08);
+  --cimar-green: #5eac2c;
+  --cimar-green-hover: #4d9022;
+  --cimar-green-soft: rgba(94, 172, 44, 0.08);
+  --cimar-spring: #00dd39;
+  --cimar-unstable: #ffaa00;
+  --cimar-orange: #f2a82c;
+  --cimar-gold: #f6c23e;
+
+  /* Surfaces */
+  --cimar-bg: #f5f6f8;
+  --cimar-card: #ffffff;
+  --cimar-border: #e3e7ea;
+  --cimar-thead: #f4f7f6;
+  --cimar-thead-text: #405249;
+  --cimar-fill: #f3f4f6;
+  --cimar-fill-soft: #f9fafb;
+  --cimar-row-even: rgba(11, 107, 62, 0.015);
+  --cimar-row-hover: rgba(11, 107, 62, 0.055);
+  --cimar-row-border: rgba(1, 78, 44, 0.05);
+
+  /* Texte */
+  --cimar-ink: #1e293b;
+  --cimar-ink-strong: #0f172a;
+  --cimar-text: #111827;
+  --cimar-label: #374151;
+  --cimar-muted: #64748b;
+  --cimar-muted-2: #6b7280;
+  --cimar-muted-3: #9ca3af;
+  --cimar-kpi-title: #82948d;
+  --cimar-control-border: #d1d5db;
+  --cimar-ghost-border: rgba(18, 32, 36, 0.15);
+  --cimar-ghost-text: #122024;
+
+  /* Sémantique */
+  --cimar-danger: #dc2626;
+  --cimar-danger-soft: rgba(220, 38, 38, 0.12);
+  --cimar-warning: #f59e0b;
+  --cimar-warning-text: #b45309;
+  --cimar-warning-soft: rgba(245, 158, 11, 0.14);
+  --cimar-pending: #c2410c;
+  --cimar-pending-soft: rgba(234, 88, 12, 0.12);
+  --cimar-info: #3b82f6;
+  --cimar-info-soft: #dbeafe;
+  --cimar-info-text: #1e40af;
+  --cimar-success-soft: rgba(11, 107, 62, 0.12);
+  --cimar-success-text: #0b6b3e;
+  --cimar-success-strong: #065f46;
+  --cimar-success-strong-soft: #d1fae5;
+  --cimar-neutral-soft: rgba(107, 114, 128, 0.14);
+  --cimar-neutral-text: #374151;
+  --cimar-teal: #0f766e;
+  --cimar-teal-soft: rgba(15, 118, 110, 0.12);
+  --cimar-pal-soft: #fef3c7;
+  --cimar-pal-text: #92400e;
+
+  /* Pont bascule */
+  --cimar-scale-bg: #000000;
+  --cimar-scale-glow: 0 0 25px rgba(94, 172, 44, 0.6), 0 2px 4px rgba(0, 0, 0, 0.3);
+  --cimar-scale-text-dim: rgba(255, 255, 255, 0.55);
+
+  /* Typographie */
+  --cimar-font: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --cimar-mono: 'Courier New', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Rayons */
+  --radius-control: 8px;
+  --radius-control-sm: 6px;
+  --radius-panel: 12px;
+  --radius-card: 16px;
+  --radius-modal: 22px;
+  --radius-pill: 999px;
+  --radius-scale: 20px;
+
+  /* Ombres */
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.03);
+  --shadow-panel: 0 1px 3px rgba(0, 0, 0, 0.1);
+  --shadow-kpi: 0 12px 30px rgba(1, 78, 44, 0.05);
+  --shadow-primary-hover: 0 4px 12px rgba(11, 107, 62, 0.3);
+  --shadow-modal: 0 24px 70px rgba(15, 23, 42, 0.28);
+  --shadow-focus: 0 0 0 3px rgba(11, 107, 62, 0.1);
+  --shadow-logo: 0 4px 16px rgba(0, 0, 0, 0.25);
+  --shadow-scale: 0 4px 20px rgba(0, 0, 0, 0.3);
+
+  /* Espacements */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 16px;
+  --sp-4: 24px;
+  --sp-5: 32px;
+  --sp-6: 40px;
+  --sp-7: 48px;
+
+  /* Coque */
+  --sidebar-width: 280px;
+  --sidebar-width-collapsed: 85px;
+  --sidebar-text: rgba(255, 255, 255, 0.9);
+  --sidebar-item-hover: rgba(255, 255, 255, 0.08);
+  --sidebar-item-active: rgba(255, 255, 255, 0.15);
+  --sidebar-divider: rgba(255, 255, 255, 0.1);
+  --sidebar-toggle-bg: rgba(255, 255, 255, 0.12);
+  --sidebar-toggle-border: rgba(255, 255, 255, 0.2);
+  --overlay: rgba(15, 23, 42, 0.45);
+  --white: #ffffff;
+
+  /* Mouvement */
+  --t-fast: 0.2s;
+  --t-sidebar: 0.25s;
+}
