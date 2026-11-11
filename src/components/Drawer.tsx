@@ -1,6 +1,7 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { FiX } from 'react-icons/fi'
+import { useOverlay } from './useOverlay'
 
 interface DrawerProps {
   open: boolean
@@ -13,20 +14,7 @@ interface DrawerProps {
 
 export function Drawer({ open, title, subtitle, onClose, children, footer }: DrawerProps) {
   const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    const precedent = document.activeElement as HTMLElement | null
-    ref.current?.focus()
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('keydown', onKey)
-      precedent?.focus()
-    }
-  }, [open, onClose])
+  useOverlay(open, onClose, ref)
 
   if (!open) return null
   return createPortal(

@@ -35,6 +35,11 @@ export function Combobox({ label, options, value, onChange, placeholder, disable
     return options.filter((o) => `${o.label} ${o.sub ?? ''}`.toLowerCase().includes(q))
   }, [options, requete])
 
+  const listId = `${id}-list`
+  const erreurId = `${id}-err`
+  const optionId = (i: number) => `${id}-opt-${i}`
+  const actifId = ouvert && !disabled && filtrees[actif] ? optionId(actif) : undefined
+
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
       if (!racine.current?.contains(e.target as Node)) setOuvert(false)
@@ -42,6 +47,11 @@ export function Combobox({ label, options, value, onChange, placeholder, disable
     document.addEventListener('mousedown', onDoc)
     return () => document.removeEventListener('mousedown', onDoc)
   }, [])
+
+  // Garde l'option active visible dans la liste lors de la navigation clavier.
+  useEffect(() => {
+    if (actifId) document.getElementById(actifId)?.scrollIntoView({ block: 'nearest' })
+  }, [actifId])
 
   const choisir = (o: ComboOption) => {
     onChange(o.value)
@@ -53,7 +63,7 @@ export function Combobox({ label, options, value, onChange, placeholder, disable
     if (e.key === 'ArrowDown') {
       e.preventDefault()
       setOuvert(true)
-      setActif((a) => Math.min(a + 1, filtrees.length - 1))
+      setActif((a) => Math.max(0, Math.min(a + 1, filtrees.length - 1)))
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
       setActif((a) => Math.max(a - 1, 0))
@@ -68,9 +78,6 @@ export function Combobox({ label, options, value, onChange, placeholder, disable
     }
   }
 
-  const listId = `${id}-list`
-  const erreurId = `${id}-err`
-
   return (
     <div className="form-field combobox" ref={racine}>
       <label className="form-label" htmlFor={id}>
@@ -84,6 +91,8 @@ export function Combobox({ label, options, value, onChange, placeholder, disable
         aria-expanded={ouvert}
         aria-controls={listId}
         aria-autocomplete="list"
+        aria-activedescendant={actifId}
+        aria-required={required ? true : undefined}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? erreurId : undefined}
         placeholder={placeholder}
@@ -96,7 +105,12 @@ export function Combobox({ label, options, value, onChange, placeholder, disable
         }}
         onFocus={() => {
           setRequete('')
+          setActif(Math.max(0, options.findIndex((o) => o.value === value)))
           setOuvert(true)
+        }}
+        onBlur={(e) => {
+          // Tab vers un autre champ : la liste ne doit pas rester ouverte par-dessus.
+          if (!racine.current?.contains(e.relatedTarget as Node | null)) setOuvert(false)
         }}
         onKeyDown={onKeyDown}
         autoComplete="off"
@@ -111,6 +125,7 @@ export function Combobox({ label, options, value, onChange, placeholder, disable
             filtrees.map((o, i) => (
               <li
                 key={o.value}
+                id={optionId(i)}
                 role="option"
                 aria-selected={o.value === value}
                 className={clsx('combobox__option', i === actif && 'is-active')}
