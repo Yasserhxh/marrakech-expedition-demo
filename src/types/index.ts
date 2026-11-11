@@ -121,7 +121,8 @@ export interface BonDeChargement {
 }
 
 export interface BonDeLivraison {
-  numeroProvisoire: string
+  /** Numéro imprimé tant que SAP n'a pas rendu le sien : l'ID de la commande (même règle que le BL Temara). */
+  numeroLocal: string
   numeroSap?: string
   dateUtc: string
   brutKg: number
@@ -133,6 +134,8 @@ export interface Commande {
   id: number
   origine: Origine
   numeroSap?: string
+  /** Numéro local `CMD-MRK-yyyy-nnnnnn` attribué par l'API aux commandes créées au guichet. */
+  numeroLocal?: string
   clientId: string
   chantierId: string
   produitId: string
@@ -145,6 +148,10 @@ export interface Commande {
   statut: StatutCommande
   synchro: StatutSynchro
   creeeLeUtc: string
+  /** Libellés dénormalisés renvoyés par l'API (fallback quand l'élément n'est pas dans le référentiel chargé). */
+  libelles?: CommandeLibelles
+  reference?: string
+  pontBascule?: Pont
   entreeUtc?: string
   sortieUtc?: string
   peseeEntree?: Pesee
@@ -152,6 +159,8 @@ export interface Commande {
   bonDeChargement?: BonDeChargement
   bonDeLivraison?: BonDeLivraison
   commentaire?: string
+  /** Jeton de concurrence renvoyé par l'API (mode api), renvoyé tel quel sur les actions. */
+  rowVersion?: string
 }
 
 export interface SyncOperation {
@@ -166,15 +175,87 @@ export interface SyncOperation {
   derniereTentativeUtc?: string
 }
 
+export interface CommandeLibelles {
+  clientNom: string
+  clientCode: string
+  chantierNom?: string
+  produitLibelle: string
+  conditionnement?: Conditionnement
+  transporteurNom?: string
+  immatriculation?: string
+  chauffeurNom?: string
+  chauffeurCin?: string
+}
+
+/** État du pont bascule tel que relayé par le hub (`ReceiveDeviceStatus`) ou déduit côté écran (`Stale`). */
+export type EtatPont = 'Connected' | 'Disconnected' | 'Stale' | 'Error'
+
+export type SourceLookup = 'Sap' | 'Cache'
+
+export interface ClientSap {
+  code: string
+  nom: string
+  ville?: string
+}
+
+export interface ChantierSap {
+  code: string
+  nom: string
+  parDefaut: boolean
+}
+
+export interface TransporteurSap {
+  code: string
+  nom: string
+}
+
+export interface CamionSap {
+  code: string
+  immatriculation?: string
+  transporteurCode?: string
+}
+
+export interface ResultatLookup<T> {
+  source: SourceLookup
+  items: T[]
+}
+
+/**
+ * Saisie du guichet, alignée sur `CreerCommandeLocaleRequest` (phase 2b) : codes SAP saisis tels quels,
+ * noms facultatifs (remplis depuis la réponse SAP, vides quand SAP est indisponible).
+ */
 export interface NouvelleCommandeInput {
-  clientId: string
-  chantierId: string
+  clientCode: string
+  clientNom?: string
+  chantierCode: string
+  chantierNom?: string
   produitId: string
   quantiteT: number
   incoterm: Incoterm
-  transporteurId: string
-  camionId: string
-  chauffeurId: string
+  /** Obligatoire en « Rendu » (CFR), facultatif en « Départ » (EXW). */
+  transporteurCode?: string
+  transporteurNom?: string
+  /** Partenaire ZX envoyé à SAP à la synchronisation (facultatif). */
+  camionCodeSap?: string
+  immatriculation: string
+  immatriculationLibre: boolean
+  chauffeurNom: string
+  chauffeurCin?: string
+  reference?: string
+}
+
+export interface SyntheseCommandes {
+  aPeser: number
+  dansUsine: number
+  livreesAujourdhui: number
+  enAttenteSynchro: number
+}
+
+export interface SapStatut {
+  enLigne: boolean
+  verifieAtUtc: string
+  latenceMs?: number
+  detail?: string
 }
 
 export interface Utilisateur {

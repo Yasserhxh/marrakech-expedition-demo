@@ -77,10 +77,10 @@ const produits: Produit[] = [
 ]
 
 const transporteurs: Transporteur[] = [
-  { id: 't1', code: 'TR-0101', nom: 'TRANS ATLAS LOGISTIQUE' },
-  { id: 't2', code: 'TR-0102', nom: 'STM TENSIFT' },
-  { id: 't3', code: 'TR-0103', nom: 'HAOUZ TRANSPORT' },
-  { id: 't4', code: 'TR-0199', nom: 'Compte propre client' },
+  { id: 't1', code: '0006001101', nom: 'TRANS ATLAS LOGISTIQUE' },
+  { id: 't2', code: '0006001102', nom: 'STM TENSIFT' },
+  { id: 't3', code: '0006001103', nom: 'HAOUZ TRANSPORT' },
+  { id: 't4', code: '0006001199', nom: 'Compte propre client' },
 ]
 
 const camions: Camion[] = [
@@ -415,7 +415,7 @@ export function buildCommandes(now: Date): Commande[] {
       c.sortieUtc = minutesAvant(now, s.sortieMin)
       c.peseeSortie = { type: 'Sortie', pont: s.pont, poidsKg: s.brutKg, horodatageUtc: c.sortieUtc }
       c.bonDeLivraison = {
-        numeroProvisoire: s.numeroSap ?? id.toString(),
+        numeroLocal: id.toString(),
         numeroSap: s.numeroBl,
         dateUtc: c.sortieUtc,
         brutKg: s.brutKg,

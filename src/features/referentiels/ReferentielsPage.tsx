@@ -4,6 +4,7 @@ import { PageShell } from '@/components/PageShell'
 import { DataTable, type Column } from '@/components/DataTable'
 import { Modal } from '@/components/Modal'
 import { ConditionnementBadge } from '@/components/StatusBadge'
+import { estModeApi } from '@/config'
 import { services } from '@/services'
 import { useAppStore } from '@/store/useAppStore'
 import type { ReferentielKind } from '@/types'
@@ -29,6 +30,12 @@ type Ligne = Record<string, unknown> & { id: string }
 
 export function ReferentielsPage() {
   const ref = useAppStore((s) => s.referentiels)
+  const role = useAppStore((s) => s.role)
+  const signalerErreur = useAppStore((s) => s.signalerErreur)
+  const chargerChantiers = useAppStore((s) => s.chargerChantiers)
+  const pousserToast = useAppStore((s) => s.pousserToast)
+  const [clientChantiers, setClientChantiers] = useState('')
+  const [enregistrement, setEnregistrement] = useState(false)
   const [onglet, setOnglet] = useState<ReferentielKind>('clients')
   const [recherche, setRecherche] = useState('')
   const [ajout, setAjout] = useState(false)
@@ -80,7 +87,8 @@ export function ReferentielsPage() {
   }
 
   const champs = CHAMPS[onglet]
-  const libelleOption = (champ: Champ, v: unknown) => champ.options?.find((o) => o.value === v)?.label ?? String(v ?? '—')
+  const libelleOption = (champ: Champ, v: unknown) =>
+    champ.options?.find((o) => o.value === v)?.label ?? String(v ?? '—')
 
   const lignes = (ref[onglet] as unknown as Ligne[]).filter((l) => {
     const q = recherche.trim().toLowerCase()
@@ -93,7 +101,8 @@ export function ReferentielsPage() {
     header: c.label,
     render: (l) => {
       const v = l[c.key]
-      if (c.key === 'conditionnement' && (v === 'VRAC' || v === 'SAC')) return <ConditionnementBadge conditionnement={v} />
+      if (c.key === 'conditionnement' && (v === 'VRAC' || v === 'SAC'))
+        return <ConditionnementBadge conditionnement={v} />
       if (v === undefined || v === null || v === '') return <span className="text-muted">—</span>
       return <span className={c.mono ? 'code-chip' : undefined}>{libelleOption(c, v)}</span>
     },
@@ -105,7 +114,7 @@ export function ReferentielsPage() {
     setAjout(true)
   }
 
-  const enregistrer = () => {
+  const enregistrer = async () => {
     const element: Record<string, unknown> = {}
     for (const c of champs) {
       const v = valeurs[c.key] ?? ''
@@ -115,9 +124,28 @@ export function ReferentielsPage() {
         element[c.key] = v
       }
     }
-    services.referentiels.ajouter(onglet, element as never)
-    setAjout(false)
+    setEnregistrement(true)
+    try {
+      await services.referentiels.ajouter(onglet, element as never)
+      if (estModeApi) pousserToast('success', 'Élément enregistré dans le référentiel')
+      setAjout(false)
+    } catch (e) {
+      signalerErreur(e, 'Enregistrement impossible')
+    } finally {
+      setEnregistrement(false)
+    }
   }
+
+  const chargerChantiersClient = async (clientId: string) => {
+    setClientChantiers(clientId)
+    try {
+      await chargerChantiers(clientId)
+    } catch (e) {
+      signalerErreur(e, 'Chantiers du client indisponibles')
+    }
+  }
+
+  const ajoutAutorise = !estModeApi || role === 'Admin'
 
   const complet = champs.every((c) => c.type === 'number' || (valeurs[c.key] ?? '').trim() !== '')
 
@@ -126,7 +154,13 @@ export function ReferentielsPage() {
       title="Référentiels"
       subtitle="Données locales utilisées pendant une coupure SAP (clients, chantiers, produits, transport)"
       actions={
-        <button type="button" className="btn-primary" onClick={ouvrirAjout}>
+        <button
+          type="button"
+          className="btn-primary"
+          onClick={ouvrirAjout}
+          disabled={!ajoutAutorise}
+          title={ajoutAutorise ? undefined : 'Écriture des référentiels réservée au rôle Admin'}
+        >
           <FiPlus aria-hidden="true" /> Ajouter — {ONGLETS.find((o) => o.kind === onglet)?.label}
         </button>
       }
@@ -150,6 +184,26 @@ export function ReferentielsPage() {
           ))}
         </div>
         <div className="documents-filters" style={{ marginTop: 16, boxShadow: 'none' }} role="search">
+          {estModeApi && onglet === 'chantiers' ? (
+            <div className="filter-field">
+              <label className="filter-label" htmlFor="ref-client-chantiers">
+                Client (chantiers chargés par client)
+              </label>
+              <select
+                id="ref-client-chantiers"
+                className="filter-input"
+                value={clientChantiers}
+                onChange={(e) => void chargerChantiersClient(e.target.value)}
+              >
+                <option value="">Choisir un client…</option>
+                {ref.clients.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nom}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
           <div className="filter-field grow">
             <label className="filter-label" htmlFor="ref-recherche">
               Rechercher
@@ -167,7 +221,13 @@ export function ReferentielsPage() {
           </div>
         </div>
         <div style={{ marginTop: 16 }}>
-          <DataTable caption={`Référentiel ${onglet}`} columns={colonnes} rows={lignes} rowKey={(l) => l.id} empty={<span className="text-muted">Aucun élément.</span>} />
+          <DataTable
+            caption={`Référentiel ${onglet}`}
+            columns={colonnes}
+            rows={lignes}
+            rowKey={(l) => l.id}
+            empty={<span className="text-muted">Aucun élément.</span>}
+          />
         </div>
       </div>
 
@@ -180,8 +240,13 @@ export function ReferentielsPage() {
             <button type="button" className="btn-ghost" onClick={() => setAjout(false)}>
               Annuler
             </button>
-            <button type="button" className="btn-primary" onClick={enregistrer} disabled={!complet}>
-              <FiDatabase aria-hidden="true" /> Enregistrer
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => void enregistrer()}
+              disabled={!complet || enregistrement}
+            >
+              <FiDatabase aria-hidden="true" /> {enregistrement ? 'Enregistrement…' : 'Enregistrer'}
             </button>
           </>
         }

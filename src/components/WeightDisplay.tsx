@@ -1,7 +1,7 @@
 import clsx from 'clsx'
 import { FiActivity, FiCheckCircle } from 'react-icons/fi'
 import { PONTS } from '@/data/mock'
-import type { Pont } from '@/types'
+import type { EtatPont, Pont } from '@/types'
 import { formatHeure, formatNombre } from '@/utils/format'
 
 interface WeightDisplayProps {
@@ -12,6 +12,15 @@ interface WeightDisplayProps {
   stable: boolean
   derniereLectureUtc: string | null
   connecte: boolean
+  /** État relayé par le hub (mode api) ; absent en démo. */
+  etat?: EtatPont
+}
+
+function libelleEtat(pont: Pont, connecte: boolean, etat: EtatPont | undefined): string {
+  if (connecte) return `${pont} connecté`
+  if (etat === 'Stale') return `${pont} — lecture périmée (aucun message depuis 10 s)`
+  if (etat === 'Error') return `${pont} en erreur`
+  return `${pont} déconnecté`
 }
 
 export function WeightDisplay({
@@ -22,6 +31,7 @@ export function WeightDisplay({
   stable,
   derniereLectureUtc,
   connecte,
+  etat,
 }: WeightDisplayProps) {
   return (
     <div className="weighbridge">
@@ -46,7 +56,7 @@ export function WeightDisplay({
         </div>
         <div className="bridge-status" role="status">
           <span className={clsx('dot', !connecte && 'is-off')} aria-hidden="true" />
-          {connecte ? `${pont} connecté (Databridge)` : `${pont} déconnecté`}
+          {libelleEtat(pont, connecte, etat)}
           <span aria-hidden="true">·</span>
           <span>Dernière lecture {derniereLectureUtc ? formatHeure(derniereLectureUtc, true) : '—'}</span>
         </div>

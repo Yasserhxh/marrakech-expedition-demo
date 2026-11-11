@@ -8,13 +8,17 @@ import { DocumentPreview } from '@/components/DocumentPreview'
 import { EmptyState } from '@/components/EmptyState'
 import { Notice } from '@/components/Notice'
 import { StatutBadge } from '@/components/StatusBadge'
+import { estModeApi } from '@/config'
 import { services } from '@/services'
 import { useAppStore, useReferentielLookup, numeroAffiche } from '@/store/useAppStore'
 import { ABSENT, formatKg, formatNombre, formatPourcentage, formatTonnes } from '@/utils/format'
+import { PontDeconnecte, usePesee } from './usePesee'
 
 const KG_PAR_TONNE = 1000
 const ECART_OK = 0.02
 const ECART_WARN = 0.05
+/** Au-delà, l'API refuse la pesée (409 « Écart de pesée hors tolérance », `Pesee:EcartMaxPourcent`). */
+const ECART_BLOQUANT = 0.1
 const ECART_SIMULE_PAR_DEFAUT = 0.006
 
 type Tone = 'ok' | 'warn' | 'bad'
@@ -38,15 +42,21 @@ export function PeseeSortiePage() {
   const commande = useAppStore((s) => s.commandes.find((c) => c.id === commandeId))
   const poids = useAppStore((s) => s.poids)
   const sapOnline = useAppStore((s) => s.sapOnline)
-  const pousserToast = useAppStore((s) => s.pousserToast)
+  const autoriserSecondPesage = useAppStore((s) => s.autoriserSecondPesage)
   const r = useReferentielLookup()
 
   const tareKg = commande?.peseeEntree?.poidsKg ?? 0
   const commandeKg = (commande?.quantiteT ?? 0) * KG_PAR_TONNE
   const [cible, setCible] = useState<number>(Math.round(tareKg + commandeKg * (1 + ECART_SIMULE_PAR_DEFAUT)))
   const [blEmis, setBlEmis] = useState(false)
+  const { exploitable, envoi, valider } = usePesee(commandeId, 'brut')
 
-  useEffect(() => () => services.pesee.arreterSimulation(), [])
+  useEffect(() => {
+    if (commande?.pontBascule && commande.pontBascule !== poids.pont)
+      services.pesee.selectionnerPont(commande.pontBascule)
+    // Le pont est choisi à l'autorisation ; on ne resynchronise qu'au montage.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   if (!commande) {
     return (
@@ -66,25 +76,17 @@ export function PeseeSortiePage() {
     )
   }
 
-  const client = r.client(commande.clientId)
-  const chantier = r.chantier(commande.chantierId)
-  const produit = r.produit(commande.produitId)
-  const camion = r.camion(commande.camionId)
-  const chauffeur = r.chauffeur(commande.chauffeurId)
+  const client = r.client(commande)
+  const chantier = r.chantier(commande)
+  const produit = r.produit(commande)
+  const camion = r.camion(commande)
+  const chauffeur = r.chauffeur(commande)
 
   const brutKg = poids.lectureKg
   const netKg = Math.max(0, brutKg - tareKg)
   const ratio = commandeKg > 0 ? (netKg - commandeKg) / commandeKg : 0
   const tone = toneEcart(ratio)
-
-  const valider = () => {
-    try {
-      services.pesee.validerBrut(commande.id)
-      setBlEmis(true)
-    } catch (e) {
-      pousserToast('error', e instanceof Error ? e.message : 'Validation impossible')
-    }
-  }
+  const ecartBloquant = brutKg > 0 && Math.abs(ratio) > ECART_BLOQUANT
 
   const entete = (
     <div className="admin-card">
@@ -101,7 +103,7 @@ export function PeseeSortiePage() {
         </div>
         <div>
           <dt>Chantier</dt>
-          <dd>{chantier ? `${chantier.nom}, ${chantier.ville}` : ABSENT}</dd>
+          <dd>{chantier ? `${chantier.nom}${chantier.ville ? `, ${chantier.ville}` : ''}` : ABSENT}</dd>
         </div>
         <div>
           <dt>Produit</dt>
@@ -121,22 +123,13 @@ export function PeseeSortiePage() {
   )
 
   if (blEmis && commande.bonDeLivraison) {
+    const bl = commande.bonDeLivraison
     return (
       <PageShell
         title="Bon de livraison"
-        subtitle={
-          commande.bonDeLivraison.numeroSap
-            ? `BL SAP ${commande.bonDeLivraison.numeroSap} — commande livrée`
-            : 'BL provisoire — commande livrée, synchronisation SAP en attente'
-        }
+        subtitle={`BL N° ${bl.numeroSap ?? bl.numeroLocal} — commande livrée`}
       >
         {entete}
-        {!commande.bonDeLivraison.numeroSap ? (
-          <Notice tone="warning">
-            Le numéro SAP sera attribué lors de la synchronisation ; vous pourrez alors réimprimer le BL définitif depuis
-            la page « Synchronisation SAP ».
-          </Notice>
-        ) : null}
         <div className="admin-card">
           <DocumentPreview type="BL" commande={commande} />
         </div>
@@ -180,7 +173,7 @@ export function PeseeSortiePage() {
                 <button
                   type="button"
                   className="btn-primary"
-                  onClick={() => services.commandes.autoriserSecondPesage(commande.id)}
+                  onClick={() => void autoriserSecondPesage(commande.id)}
                 >
                   <FiCheck aria-hidden="true" /> Autoriser le 2ᵉ pesage (guichet)
                 </button>
@@ -199,6 +192,7 @@ export function PeseeSortiePage() {
   return (
     <PageShell title="Pesée de sortie" subtitle="Second pesage : poids brut du camion chargé">
       {entete}
+      <PontDeconnecte poids={poids} />
       <div className="pesee-layout">
         <div className="admin-card">
           <WeightDisplay
@@ -209,6 +203,7 @@ export function PeseeSortiePage() {
             stable={poids.stable}
             derniereLectureUtc={poids.derniereLectureUtc}
             connecte={poids.connecte}
+            etat={poids.etat}
           />
 
           <div className="net-panel" style={{ marginTop: 16 }} aria-live="polite">
@@ -227,59 +222,77 @@ export function PeseeSortiePage() {
             </div>
           </div>
 
+          {ecartBloquant ? (
+            <Notice tone="danger">
+              Écart supérieur à 10 % : l'API refusera cette pesée. Vérifiez le chargement avant de valider.
+            </Notice>
+          ) : null}
+
           <div style={{ marginTop: 16 }}>
-            <button type="button" className="btn-primary btn-lg btn-block" disabled={!poids.stable} onClick={valider}>
-              <FiCheck aria-hidden="true" /> Valider et imprimer le Bon de livraison
+            <button
+              type="button"
+              className="btn-primary btn-lg btn-block"
+              disabled={!exploitable || envoi}
+              onClick={() => void valider().then((ok) => ok && setBlEmis(true))}
+            >
+              <FiCheck aria-hidden="true" />{' '}
+              {envoi ? 'Enregistrement…' : 'Valider et imprimer le Bon de livraison'}
             </button>
-            {!poids.stable ? (
+            {!exploitable ? (
               <p className="text-muted" style={{ fontSize: 12, marginTop: 6, textAlign: 'center' }}>
-                Le bouton s'active dès que le poids brut est stable.
+                Le bouton s'active dès que le poids brut est stable et récent.
               </p>
             ) : null}
           </div>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div className="demo-panel">
-            <span className="demo-panel__title">
-              <FiSliders aria-hidden="true" /> Démonstration — remplace la lecture Databridge
-            </span>
-            <div className="form-field">
-              <label className="form-label" htmlFor="cible-brut">
-                Poids brut simulé (kg)
-              </label>
-              <input
-                id="cible-brut"
-                className="form-input mono"
-                type="number"
-                min={2000}
-                step={10}
-                value={cible}
-                onChange={(e) => setCible(Number(e.target.value))}
-              />
-              <span className="form-help">
-                Tare {formatKg(tareKg)} + commandé {formatKg(commandeKg)} — modifiez la valeur pour montrer un écart orange
-                ou rouge.
+          {!estModeApi ? (
+            <div className="demo-panel">
+              <span className="demo-panel__title">
+                <FiSliders aria-hidden="true" /> Démonstration — remplace la lecture Databridge
               </span>
+              <div className="form-field">
+                <label className="form-label" htmlFor="cible-brut">
+                  Poids brut simulé (kg)
+                </label>
+                <input
+                  id="cible-brut"
+                  className="form-input mono"
+                  type="number"
+                  min={2000}
+                  step={10}
+                  value={cible}
+                  onChange={(e) => setCible(Number(e.target.value))}
+                />
+                <span className="form-help">
+                  Tare {formatKg(tareKg)} + commandé {formatKg(commandeKg)} — modifiez la valeur pour montrer
+                  un écart orange ou rouge.
+                </span>
+              </div>
+              <div className="btn-row">
+                <button
+                  type="button"
+                  className="btn-action"
+                  onClick={() => services.pesee.simulerCamion(cible)}
+                >
+                  <FiTruck aria-hidden="true" /> Simuler un camion
+                </button>
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  onClick={() => services.pesee.arreterSimulation()}
+                  disabled={!poids.enCours}
+                >
+                  Retirer le camion
+                </button>
+              </div>
             </div>
-            <div className="btn-row">
-              <button type="button" className="btn-action" onClick={() => services.pesee.simulerCamion(cible)}>
-                <FiTruck aria-hidden="true" /> Simuler un camion
-              </button>
-              <button
-                type="button"
-                className="btn-ghost"
-                onClick={() => services.pesee.arreterSimulation()}
-                disabled={!poids.enCours}
-              >
-                Retirer le camion
-              </button>
-            </div>
-          </div>
-          <Notice tone={sapOnline ? 'info' : 'warning'}>
+          ) : null}
+          <Notice tone="info">
             {sapOnline && commande.origine === 'Sap'
               ? 'SAP en ligne : le BL recevra immédiatement son numéro SAP (0080…).'
-              : 'Le BL sera émis avec un numéro provisoire (ID commande) et mis en file de synchronisation SAP.'}
+              : 'Le BL est émis sous le numéro de la commande ; le numéro SAP est renseigné à la synchronisation.'}
           </Notice>
         </div>
       </div>

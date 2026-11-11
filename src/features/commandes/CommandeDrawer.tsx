@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FiFileText, FiLogIn, FiLogOut, FiPrinter, FiXCircle } from 'react-icons/fi'
 import { Drawer } from '@/components/Drawer'
@@ -6,7 +6,7 @@ import { Modal } from '@/components/Modal'
 import { Notice } from '@/components/Notice'
 import { DocumentPreview } from '@/components/DocumentPreview'
 import { ConditionnementBadge, OrigineBadge, StatutBadge, SynchroBadge } from '@/components/StatusBadge'
-import { services } from '@/services'
+import { estModeApi } from '@/config'
 import { useAppStore, useReferentielLookup, numeroAffiche } from '@/store/useAppStore'
 import { INCOTERM_LABELS } from '@/types'
 import { ABSENT, formatDateTime, formatKg, formatNombre, formatTonnes } from '@/utils/format'
@@ -18,30 +18,42 @@ interface CommandeDrawerProps {
 
 export function CommandeDrawer({ commandeId, onClose }: CommandeDrawerProps) {
   const commande = useAppStore((s) => s.commandes.find((c) => c.id === commandeId))
-  const pousserToast = useAppStore((s) => s.pousserToast)
+  const autoriserPesee = useAppStore((s) => s.autoriserPesee)
+  const autoriserSecondPesage = useAppStore((s) => s.autoriserSecondPesage)
+  const annulerCommande = useAppStore((s) => s.annulerCommande)
+  const chargerDetail = useAppStore((s) => s.chargerDetail)
   const r = useReferentielLookup()
   const navigate = useNavigate()
   const [apercu, setApercu] = useState<'BC' | 'BL' | null>(null)
   const [confirmerAnnulation, setConfirmerAnnulation] = useState(false)
+  const [motif, setMotif] = useState('')
+  const [actionEnCours, setActionEnCours] = useState(false)
+
+  // Mode api : la liste ne porte pas les pesées/documents, on relit le détail à l'ouverture.
+  useEffect(() => {
+    if (estModeApi && commandeId !== null) void chargerDetail(commandeId)
+  }, [commandeId, chargerDetail])
 
   if (!commande) return null
 
-  const client = r.client(commande.clientId)
-  const chantier = r.chantier(commande.chantierId)
-  const produit = r.produit(commande.produitId)
-  const transporteur = r.transporteur(commande.transporteurId)
-  const camion = r.camion(commande.camionId)
-  const chauffeur = r.chauffeur(commande.chauffeurId)
+  const client = r.client(commande)
+  const chantier = r.chantier(commande)
+  const produit = r.produit(commande)
+  const transporteur = r.transporteur(commande)
+  const camion = r.camion(commande)
+  const chauffeur = r.chauffeur(commande)
 
-  const executer = (action: () => void) => {
+  const executer = async (action: () => Promise<boolean>) => {
+    setActionEnCours(true)
     try {
-      action()
-    } catch (e) {
-      pousserToast('error', e instanceof Error ? e.message : 'Action impossible')
+      await action()
+    } finally {
+      setActionEnCours(false)
     }
   }
 
-  const annulable = !commande.bonDeLivraison && commande.statut !== 'Annulee'
+  // Contrat : annulation possible depuis « Créée » ou « Entrée autorisée » uniquement (après la tare → procédure manuelle).
+  const annulable = commande.statut === 'Creee' || commande.statut === 'EntreeAutorisee'
 
   const actions = (
     <>
@@ -49,13 +61,18 @@ export function CommandeDrawer({ commandeId, onClose }: CommandeDrawerProps) {
         <button
           type="button"
           className="btn-primary btn-block"
-          onClick={() => executer(() => services.commandes.autoriserPesee(commande.id))}
+          disabled={actionEnCours}
+          onClick={() => void executer(() => autoriserPesee(commande.id))}
         >
           <FiLogIn aria-hidden="true" /> Autoriser la pesée d'entrée
         </button>
       ) : null}
       {commande.statut === 'EntreeAutorisee' ? (
-        <button type="button" className="btn-action btn-block" onClick={() => navigate(`/pesee/entree/${commande.id}`)}>
+        <button
+          type="button"
+          className="btn-action btn-block"
+          onClick={() => navigate(`/pesee/entree/${commande.id}`)}
+        >
           <FiLogIn aria-hidden="true" /> Ouvrir la pesée d'entrée (tare)
         </button>
       ) : null}
@@ -63,13 +80,18 @@ export function CommandeDrawer({ commandeId, onClose }: CommandeDrawerProps) {
         <button
           type="button"
           className="btn-primary btn-block"
-          onClick={() => executer(() => services.commandes.autoriserSecondPesage(commande.id))}
+          disabled={actionEnCours}
+          onClick={() => void executer(() => autoriserSecondPesage(commande.id))}
         >
           <FiLogOut aria-hidden="true" /> Autoriser le 2ᵉ pesage
         </button>
       ) : null}
       {commande.statut === 'SortieAutorisee' ? (
-        <button type="button" className="btn-action btn-block" onClick={() => navigate(`/pesee/sortie/${commande.id}`)}>
+        <button
+          type="button"
+          className="btn-action btn-block"
+          onClick={() => navigate(`/pesee/sortie/${commande.id}`)}
+        >
           <FiLogOut aria-hidden="true" /> Ouvrir la pesée de sortie (brut)
         </button>
       ) : null}
@@ -117,7 +139,8 @@ export function CommandeDrawer({ commandeId, onClose }: CommandeDrawerProps) {
         ) : null}
         {commande.origine === 'Locale' && commande.synchro === 'EnAttente' ? (
           <Notice tone="warning">
-            Commande créée hors ligne : elle sera envoyée à SAP après l'émission du BL, dès que SAP sera joignable.
+            Commande créée hors ligne : elle sera envoyée à SAP après l'émission du BL, dès que SAP sera
+            joignable.
           </Notice>
         ) : null}
 
@@ -150,7 +173,9 @@ export function CommandeDrawer({ commandeId, onClose }: CommandeDrawerProps) {
               <dt>Quantité</dt>
               <dd>
                 {formatTonnes(commande.quantiteT)}
-                {commande.nombreSacs ? <span className="cell-sub">{formatNombre(commande.nombreSacs)} sacs</span> : null}
+                {commande.nombreSacs ? (
+                  <span className="cell-sub">{formatNombre(commande.nombreSacs)} sacs</span>
+                ) : null}
               </dd>
             </div>
             <div>
@@ -184,14 +209,25 @@ export function CommandeDrawer({ commandeId, onClose }: CommandeDrawerProps) {
             </div>
             <div>
               <dt>N° SAP</dt>
-              <dd className="mono">{commande.numeroSap ?? ABSENT}</dd>
+              <dd className="mono">
+                {commande.numeroSap ?? ABSENT}
+                {commande.numeroLocal ? <span className="cell-sub mono">{commande.numeroLocal}</span> : null}
+              </dd>
             </div>
+            {commande.reference ? (
+              <div>
+                <dt>Référence client</dt>
+                <dd>{commande.reference}</dd>
+              </div>
+            ) : null}
             <div>
               <dt>Entrée (tare)</dt>
               <dd>
                 {formatKg(commande.peseeEntree?.poidsKg)}
                 <span className="cell-sub">
-                  {commande.peseeEntree ? `${commande.peseeEntree.pont} · ${formatDateTime(commande.entreeUtc)}` : ''}
+                  {commande.peseeEntree
+                    ? `${commande.peseeEntree.pont} · ${formatDateTime(commande.entreeUtc)}`
+                    : ''}
                 </span>
               </dd>
             </div>
@@ -200,7 +236,9 @@ export function CommandeDrawer({ commandeId, onClose }: CommandeDrawerProps) {
               <dd>
                 {formatKg(commande.peseeSortie?.poidsKg)}
                 <span className="cell-sub">
-                  {commande.peseeSortie ? `${commande.peseeSortie.pont} · ${formatDateTime(commande.sortieUtc)}` : ''}
+                  {commande.peseeSortie
+                    ? `${commande.peseeSortie.pont} · ${formatDateTime(commande.sortieUtc)}`
+                    : ''}
                 </span>
               </dd>
             </div>
@@ -218,14 +256,17 @@ export function CommandeDrawer({ commandeId, onClose }: CommandeDrawerProps) {
                 {commande.bonDeLivraison
                   ? commande.bonDeLivraison.numeroSap
                     ? `${commande.bonDeLivraison.numeroSap} (SAP)`
-                    : `${commande.bonDeLivraison.numeroProvisoire} (provisoire)`
+                    : `${commande.bonDeLivraison.numeroLocal} (N° SAP à venir)`
                   : ABSENT}
               </dd>
             </div>
           </dl>
         </section>
 
-        <p className="text-muted" style={{ fontSize: 12, display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+        <p
+          className="text-muted"
+          style={{ fontSize: 12, display: 'inline-flex', gap: 6, alignItems: 'center' }}
+        >
           <FiFileText aria-hidden="true" /> Les actions disponibles dépendent du statut de la commande.
         </p>
       </Drawer>
@@ -251,10 +292,16 @@ export function CommandeDrawer({ commandeId, onClose }: CommandeDrawerProps) {
             <button
               type="button"
               className="btn-danger"
+              disabled={actionEnCours}
               onClick={() => {
-                executer(() => services.commandes.annuler(commande.id))
-                setConfirmerAnnulation(false)
-                onClose()
+                void executer(async () => {
+                  const ok = await annulerCommande(commande.id, motif.trim())
+                  if (ok) {
+                    setConfirmerAnnulation(false)
+                    onClose()
+                  }
+                  return ok
+                })
               }}
             >
               <FiXCircle aria-hidden="true" /> Confirmer l'annulation
@@ -263,9 +310,22 @@ export function CommandeDrawer({ commandeId, onClose }: CommandeDrawerProps) {
         }
       >
         <p>
-          La commande <strong>{numeroAffiche(commande)}</strong> ({client?.nom}) sera marquée « Annulée ». Le camion ne
-          pourra plus être pesé pour cette commande.
+          La commande <strong>{numeroAffiche(commande)}</strong> ({client?.nom}) sera marquée « Annulée ». Le
+          camion ne pourra plus être pesé pour cette commande.
         </p>
+        <div className="form-field" style={{ marginTop: 12 }}>
+          <label className="form-label" htmlFor="motif-annulation">
+            Motif
+          </label>
+          <input
+            id="motif-annulation"
+            className="form-input"
+            value={motif}
+            onChange={(e) => setMotif(e.target.value)}
+            placeholder="Ex. : camion absent, erreur de saisie…"
+            maxLength={200}
+          />
+        </div>
       </Modal>
     </>
   )

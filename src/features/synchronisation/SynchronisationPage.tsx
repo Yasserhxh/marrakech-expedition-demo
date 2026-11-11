@@ -1,11 +1,21 @@
 import { useEffect, useState } from 'react'
-import { FiAlertTriangle, FiCheckCircle, FiClock, FiPrinter, FiRefreshCw, FiUnlock, FiWifi, FiWifiOff } from 'react-icons/fi'
+import {
+  FiAlertTriangle,
+  FiCheckCircle,
+  FiClock,
+  FiPrinter,
+  FiRefreshCw,
+  FiUnlock,
+  FiWifi,
+  FiWifiOff,
+} from 'react-icons/fi'
 import { PageShell } from '@/components/PageShell'
 import { KpiCard } from '@/components/KpiCard'
 import { DataTable, type Column } from '@/components/DataTable'
 import { EmptyState } from '@/components/EmptyState'
 import { Modal } from '@/components/Modal'
 import { Notice } from '@/components/Notice'
+import { DemoNotice } from '@/components/DemoNotice'
 import { DocumentPreview } from '@/components/DocumentPreview'
 import { SynchroBadge } from '@/components/StatusBadge'
 import { SyncSteps } from '@/components/SyncSteps'
@@ -72,7 +82,7 @@ export function SynchronisationPage() {
       render: ({ commande }) => (
         <span>
           <span className="code-chip">{numeroAffiche(commande)}</span>
-          <span className="cell-sub">{r.client(commande.clientId)?.nom}</span>
+          <span className="cell-sub">{r.client(commande)?.nom}</span>
         </span>
       ),
       sortValue: ({ commande }) => numeroAffiche(commande),
@@ -124,7 +134,7 @@ export function SynchronisationPage() {
           )
         }
         if (!op.message) return <span className="text-muted">—</span>
-        const client = r.client(commande.clientId)
+        const client = r.client(commande)
         const bloque = client ? clientsBloques.includes(client.code) : false
         return (
           <span style={{ whiteSpace: 'normal', display: 'inline-flex', flexDirection: 'column', gap: 4 }}>
@@ -205,6 +215,7 @@ export function SynchronisationPage() {
         </>
       }
     >
+      <DemoNotice sujet="synchronisation SAP (file des opérations, reprise)" />
       <div className="admin-card">
         <div className="admin-card__head">
           <h2>État de la connexion SAP</h2>
@@ -224,24 +235,40 @@ export function SynchronisationPage() {
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
               <FiWifiOff aria-hidden="true" /> <strong>SAP injoignable</strong>
             </span>{' '}
-            — timeout 10 s. Les commandes locales et BL provisoires restent en file ; la synchronisation sera possible dès le
-            retour de SAP (basculez l'interrupteur de la barre de démonstration).
+            — timeout 10 s. Les commandes et BL locaux restent en file ; la synchronisation sera
+            possible dès le retour de SAP (basculez l'interrupteur de la barre de démonstration).
           </Notice>
         )}
       </div>
 
       <div className="kpi-row">
-        <KpiCard title="En attente" value={compte.attente} icon={<FiClock />} tone={compte.attente > 0 ? 'warning' : 'default'} />
+        <KpiCard
+          title="En attente"
+          value={compte.attente}
+          icon={<FiClock />}
+          tone={compte.attente > 0 ? 'warning' : 'default'}
+        />
         <KpiCard title="En cours" value={compte.enCours} icon={<FiRefreshCw />} tone="info" />
-        <KpiCard title="En erreur" value={compte.erreur} icon={<FiAlertTriangle />} tone={compte.erreur > 0 ? 'danger' : 'default'} />
-        <KpiCard title="Synchronisées" value={compte.ok} icon={<FiCheckCircle />} tone="success" hint="Depuis l'ouverture" />
+        <KpiCard
+          title="En erreur"
+          value={compte.erreur}
+          icon={<FiAlertTriangle />}
+          tone={compte.erreur > 0 ? 'danger' : 'default'}
+        />
+        <KpiCard
+          title="Synchronisées"
+          value={compte.ok}
+          icon={<FiCheckCircle />}
+          tone="success"
+          hint="Depuis l'ouverture"
+        />
       </div>
 
       {localesNonLivrees > 0 ? (
         <Notice tone="info">
-          {localesNonLivrees} commande{localesNonLivrees > 1 ? 's' : ''} locale{localesNonLivrees > 1 ? 's' : ''} en cours
-          d'expédition : elle{localesNonLivrees > 1 ? 's' : ''} rejoindr{localesNonLivrees > 1 ? 'ont' : 'a'} la file après
-          l'émission du Bon de livraison.
+          {localesNonLivrees} commande{localesNonLivrees > 1 ? 's' : ''} locale
+          {localesNonLivrees > 1 ? 's' : ''} en cours d'expédition : elle{localesNonLivrees > 1 ? 's' : ''}{' '}
+          rejoindr{localesNonLivrees > 1 ? 'ont' : 'a'} la file après l'émission du Bon de livraison.
         </Notice>
       ) : null}
 
@@ -255,7 +282,7 @@ export function SynchronisationPage() {
             <EmptyState
               icon={<FiCheckCircle />}
               title="Aucune opération en file"
-              description="Les commandes locales livrées et les BL provisoires apparaissent ici pour être rejoués vers SAP."
+              description="Les commandes locales livrées et les BL émis hors ligne apparaissent ici pour être rejoués vers SAP."
             />
           }
         />

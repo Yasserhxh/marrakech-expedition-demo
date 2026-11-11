@@ -1,16 +1,29 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { FiClock, FiHome, FiInbox, FiPlus, FiRefreshCw, FiSearch, FiTruck, FiCheckCircle } from 'react-icons/fi'
+import {
+  FiAlertCircle,
+  FiClock,
+  FiHome,
+  FiInbox,
+  FiLoader,
+  FiPlus,
+  FiRefreshCw,
+  FiSearch,
+  FiTruck,
+  FiCheckCircle,
+} from 'react-icons/fi'
 import { PageShell } from '@/components/PageShell'
 import { KpiCard } from '@/components/KpiCard'
 import { DataTable, type Column } from '@/components/DataTable'
 import { EmptyState } from '@/components/EmptyState'
+import { Notice } from '@/components/Notice'
 import { OrigineBadge, StatutBadge, SynchroBadge } from '@/components/StatusBadge'
 import { CommandeDrawer } from './CommandeDrawer'
+import { estModeApi } from '@/config'
 import { useAppStore, useReferentielLookup, numeroAffiche } from '@/store/useAppStore'
 import type { Commande, Origine, StatutCommande } from '@/types'
 import { INCOTERM_LABELS, STATUT_LABELS } from '@/types'
-import { formatTonnes } from '@/utils/format'
+import { formatHeure, formatTonnes } from '@/utils/format'
 
 type Groupe = 'tous' | 'aPeser' | 'usine' | 'livrees' | 'synchro'
 
@@ -35,6 +48,11 @@ const STATUTS: StatutCommande[] = [
 export function CommandesPage() {
   const commandes = useAppStore((s) => s.commandes)
   const sapOnline = useAppStore((s) => s.sapOnline)
+  const synthese = useAppStore((s) => s.synthese)
+  const chargement = useAppStore((s) => s.chargement.commandes)
+  const erreurChargement = useAppStore((s) => s.erreurChargement)
+  const dernierRafraichissementUtc = useAppStore((s) => s.dernierRafraichissementUtc)
+  const refresh = useAppStore((s) => s.refresh)
   const r = useReferentielLookup()
   const [recherche, setRecherche] = useState('')
   const [statut, setStatut] = useState<StatutCommande | ''>('')
@@ -42,14 +60,24 @@ export function CommandesPage() {
   const [groupe, setGroupe] = useState<Groupe>('tous')
   const [selection, setSelection] = useState<number | null>(null)
 
+  // Cartes KPI : en mode api, synthèse du service (`/commandes/synthese`) ; en mock, calcul local (les pesées simulées
+  // modifient la liste sans repasser par la synthèse).
   const compte = useMemo(
-    () => ({
-      aPeser: commandes.filter(GROUPES.aPeser).length,
-      usine: commandes.filter(GROUPES.usine).length,
-      livrees: commandes.filter(GROUPES.livrees).length,
-      synchro: commandes.filter(GROUPES.synchro).length,
-    }),
-    [commandes],
+    () =>
+      estModeApi && synthese
+        ? {
+            aPeser: synthese.aPeser,
+            usine: synthese.dansUsine,
+            livrees: synthese.livreesAujourdhui,
+            synchro: synthese.enAttenteSynchro,
+          }
+        : {
+            aPeser: commandes.filter(GROUPES.aPeser).length,
+            usine: commandes.filter(GROUPES.usine).length,
+            livrees: commandes.filter(GROUPES.livrees).length,
+            synchro: commandes.filter(GROUPES.synchro).length,
+          },
+    [commandes, synthese],
   )
 
   const lignes = useMemo(() => {
@@ -61,11 +89,11 @@ export function CommandesPage() {
       if (!q) return true
       const texte = [
         numeroAffiche(c),
-        r.client(c.clientId)?.nom,
-        r.chantier(c.chantierId)?.nom,
-        r.produit(c.produitId)?.libelle,
-        r.camion(c.camionId)?.immatriculation,
-        r.chauffeur(c.chauffeurId)?.nom,
+        r.client(c)?.nom,
+        r.chantier(c)?.nom,
+        r.produit(c)?.libelle,
+        r.camion(c)?.immatriculation,
+        r.chauffeur(c)?.nom,
       ]
         .join(' ')
         .toLowerCase()
@@ -80,18 +108,23 @@ export function CommandesPage() {
       render: (c) => <span className="code-chip">{numeroAffiche(c)}</span>,
       sortValue: (c) => numeroAffiche(c),
     },
-    { key: 'origine', header: 'Origine', render: (c) => <OrigineBadge origine={c.origine} />, sortValue: (c) => c.origine },
+    {
+      key: 'origine',
+      header: 'Origine',
+      render: (c) => <OrigineBadge origine={c.origine} />,
+      sortValue: (c) => c.origine,
+    },
     {
       key: 'client',
       header: 'Client',
-      render: (c) => <span className="cell-main">{r.client(c.clientId)?.nom ?? '—'}</span>,
-      sortValue: (c) => r.client(c.clientId)?.nom ?? '',
+      render: (c) => <span className="cell-main">{r.client(c)?.nom ?? '—'}</span>,
+      sortValue: (c) => r.client(c)?.nom ?? '',
     },
     {
       key: 'chantier',
       header: 'Chantier',
       render: (c) => {
-        const ch = r.chantier(c.chantierId)
+        const ch = r.chantier(c)
         return ch ? (
           <span>
             {ch.nom}
@@ -101,13 +134,13 @@ export function CommandesPage() {
           '—'
         )
       },
-      sortValue: (c) => r.chantier(c.chantierId)?.nom ?? '',
+      sortValue: (c) => r.chantier(c)?.nom ?? '',
     },
     {
       key: 'produit',
       header: 'Produit',
-      render: (c) => r.produit(c.produitId)?.libelle ?? '—',
-      sortValue: (c) => r.produit(c.produitId)?.libelle ?? '',
+      render: (c) => r.produit(c)?.libelle ?? '—',
+      sortValue: (c) => r.produit(c)?.libelle ?? '',
     },
     {
       key: 'quantite',
@@ -126,13 +159,18 @@ export function CommandesPage() {
       header: 'Camion',
       render: (c) => (
         <span>
-          <span className="mono">{r.camion(c.camionId)?.immatriculation ?? '—'}</span>
-          <span className="cell-sub">{r.chauffeur(c.chauffeurId)?.nom ?? '—'}</span>
+          <span className="mono">{r.camion(c)?.immatriculation ?? '—'}</span>
+          <span className="cell-sub">{r.chauffeur(c)?.nom ?? '—'}</span>
         </span>
       ),
-      sortValue: (c) => r.camion(c.camionId)?.immatriculation ?? '',
+      sortValue: (c) => r.camion(c)?.immatriculation ?? '',
     },
-    { key: 'statut', header: 'Statut', render: (c) => <StatutBadge statut={c.statut} />, sortValue: (c) => STATUT_LABELS[c.statut] },
+    {
+      key: 'statut',
+      header: 'Statut',
+      render: (c) => <StatutBadge statut={c.statut} />,
+      sortValue: (c) => STATUT_LABELS[c.statut],
+    },
     {
       key: 'synchro',
       header: 'Synchro',
@@ -142,6 +180,18 @@ export function CommandesPage() {
   ]
 
   const basculerGroupe = (g: Exclude<Groupe, 'tous'>) => setGroupe((prev) => (prev === g ? 'tous' : g))
+
+  const boutonActualiser = (
+    <button
+      type="button"
+      className="btn-ghost"
+      onClick={() => void refresh()}
+      disabled={chargement}
+      aria-busy={chargement}
+    >
+      {chargement ? <FiLoader aria-hidden="true" /> : <FiRefreshCw aria-hidden="true" />} Actualiser
+    </button>
+  )
 
   const boutonNouvelle = sapOnline ? (
     <span title="SAP est en ligne : créez la commande dans SAP, elle arrivera automatiquement ici.">
@@ -168,8 +218,21 @@ export function CommandesPage() {
           </span>
         </>
       }
-      actions={boutonNouvelle}
+      actions={
+        <>
+          {boutonActualiser}
+          {boutonNouvelle}
+        </>
+      }
     >
+      {erreurChargement ? (
+        <Notice tone="danger">
+          <strong>Chargement impossible.</strong> {erreurChargement}{' '}
+          <button type="button" className="btn-link" onClick={() => void refresh()}>
+            Réessayer
+          </button>
+        </Notice>
+      ) : null}
       <div className="kpi-row">
         <KpiCard
           title="À peser"
@@ -200,7 +263,7 @@ export function CommandesPage() {
         <KpiCard
           title="En attente de synchro"
           value={compte.synchro}
-          hint="Commandes locales ou BL provisoires"
+          hint="Commandes et BL locaux en attente de SAP"
           icon={<FiRefreshCw />}
           tone={compte.synchro > 0 ? 'warning' : 'default'}
           onClick={() => basculerGroupe('synchro')}
@@ -269,8 +332,21 @@ export function CommandesPage() {
         >
           Réinitialiser
         </button>
-        <span className="text-muted" style={{ marginLeft: 'auto', fontSize: 13 }}>
-          {lignes.length} commande{lignes.length > 1 ? 's' : ''}
+        <span
+          className="text-muted"
+          style={{ marginLeft: 'auto', fontSize: 13, display: 'inline-flex', gap: 10, alignItems: 'center' }}
+        >
+          {chargement ? (
+            <span className="loading-row">
+              <FiLoader aria-hidden="true" /> Chargement…
+            </span>
+          ) : null}
+          {dernierRafraichissementUtc ? (
+            <span>MAJ {formatHeure(dernierRafraichissementUtc, true)}</span>
+          ) : null}
+          <span>
+            {lignes.length} commande{lignes.length > 1 ? 's' : ''}
+          </span>
         </span>
       </div>
 
@@ -285,9 +361,19 @@ export function CommandesPage() {
           selectedKey={selection}
           empty={
             <EmptyState
-              icon={<FiInbox />}
-              title="Aucune commande ne correspond"
-              description="Modifiez les filtres ou, si SAP est indisponible, créez une commande locale."
+              icon={erreurChargement ? <FiAlertCircle /> : <FiInbox />}
+              title={
+                erreurChargement
+                  ? 'Commandes indisponibles'
+                  : chargement
+                    ? 'Chargement des commandes…'
+                    : 'Aucune commande ne correspond'
+              }
+              description={
+                erreurChargement
+                  ? erreurChargement
+                  : 'Modifiez les filtres ou, si SAP est indisponible, créez une commande locale.'
+              }
               action={
                 !sapOnline ? (
                   <Link to="/commandes/nouvelle" className="btn-primary btn-sm">
@@ -300,9 +386,12 @@ export function CommandesPage() {
         />
       </div>
 
-      <p className="text-muted" style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-        <FiClock aria-hidden="true" /> Cliquez sur une ligne pour ouvrir le détail et les actions (autoriser la pesée,
-        réimprimer, annuler).
+      <p
+        className="text-muted"
+        style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+      >
+        <FiClock aria-hidden="true" /> Cliquez sur une ligne pour ouvrir le détail et les actions (autoriser
+        la pesée, réimprimer, annuler).
       </p>
 
       <CommandeDrawer commandeId={selection} onClose={() => setSelection(null)} />

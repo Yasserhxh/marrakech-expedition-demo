@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { FiAlertTriangle, FiPrinter } from 'react-icons/fi'
+import { FiPrinter } from 'react-icons/fi'
 import { USINE } from '@/data/mock'
 import { useReferentielLookup, numeroAffiche } from '@/store/useAppStore'
 import type { Commande } from '@/types'
@@ -27,18 +27,19 @@ function Champ({ k, v, mono }: { k: string; v: string; mono?: boolean }) {
 export function DocumentPreview({ type, commande, onPrinted }: DocumentPreviewProps) {
   const [exemplaire, setExemplaire] = useState<Exemplaire>('Client')
   const r = useReferentielLookup()
-  const client = r.client(commande.clientId)
-  const chantier = r.chantier(commande.chantierId)
-  const produit = r.produit(commande.produitId)
-  const transporteur = r.transporteur(commande.transporteurId)
-  const camion = r.camion(commande.camionId)
-  const chauffeur = r.chauffeur(commande.chauffeurId)
+  const client = r.client(commande)
+  const chantier = r.chantier(commande)
+  const produit = r.produit(commande)
+  const transporteur = r.transporteur(commande)
+  const camion = r.camion(commande)
+  const chauffeur = r.chauffeur(commande)
 
   const bc = commande.bonDeChargement
   const bl = commande.bonDeLivraison
   const estBl = type === 'BL'
-  const provisoire = estBl ? !bl?.numeroSap : commande.origine === 'Locale' && !commande.numeroSap
-  const numero = estBl ? (bl?.numeroSap ?? bl?.numeroProvisoire ?? ABSENT) : (bc?.numero ?? ABSENT)
+  // Même règle que le BL Temara : le numéro SAP s'il existe, sinon l'ID de la commande, toujours étiqueté « N° ».
+  const numero = estBl ? (bl?.numeroSap ?? bl?.numeroLocal ?? String(commande.id)) : (bc?.numero ?? ABSENT)
+  const numeroSap = estBl ? bl?.numeroSap : commande.numeroSap
   const date = estBl ? bl?.dateUtc : bc?.dateUtc
 
   const imprimer = () => {
@@ -70,11 +71,8 @@ export function DocumentPreview({ type, commande, onPrinted }: DocumentPreviewPr
             </div>
           </div>
           <div className="sheet__title">
-            <h2>{estBl ? 'Bon de livraison' : 'Bon de chargement'}</h2>
-            <div className="sheet__number">
-              {estBl && provisoire ? 'N° provisoire ' : 'N° '}
-              {numero}
-            </div>
+            <h2>{estBl ? 'BON DE LIVRAISON' : 'BON DE CHARGEMENT'}</h2>
+            <div className="sheet__number">N° {numero}</div>
             <span className="sheet__copy">Exemplaire {exemplaire}</span>
           </div>
         </header>
@@ -131,15 +129,10 @@ export function DocumentPreview({ type, commande, onPrinted }: DocumentPreviewPr
 
         <footer className="sheet__footer">
           <span>
-            {estBl ? 'BL' : 'BC'} {numero} · {USINE.code} · Édité le {formatDateTime(new Date().toISOString())}
+            {estBl ? 'BL' : 'BC'} {numero} · {USINE.code} · Édité le{' '}
+            {formatDateTime(new Date().toISOString())}
           </span>
-          {provisoire ? (
-            <span className="sheet__provisional">
-              <FiAlertTriangle aria-hidden="true" /> Document provisoire — en attente de synchronisation SAP
-            </span>
-          ) : (
-            <span>N° SAP {estBl ? bl?.numeroSap : commande.numeroSap}</span>
-          )}
+          {numeroSap ? <span>N° SAP {numeroSap}</span> : null}
         </footer>
       </article>
     </div>

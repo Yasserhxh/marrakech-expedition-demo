@@ -10,6 +10,8 @@ import {
   FiRefreshCw,
   FiTruck,
 } from 'react-icons/fi'
+import { useAuth } from '@/auth/useAuth'
+import { estModeApi } from '@/config'
 import { useAppStore } from '@/store/useAppStore'
 import type { Role } from '@/types'
 import { ROLE_LABELS } from '@/types'
@@ -97,7 +99,7 @@ export function AdminSidebar() {
   const toggle = useAppStore((s) => s.toggleSidebar)
   const role = useAppStore((s) => s.role)
   const utilisateur = useAppStore((s) => s.utilisateur)
-  const deconnecter = useAppStore((s) => s.deconnecter)
+  const { seDeconnecter } = useAuth()
   const enAttenteSynchro = useAppStore(
     (s) => s.syncOps.filter((o) => o.statut === 'EnAttente' || o.statut === 'Erreur').length,
   )
@@ -107,24 +109,38 @@ export function AdminSidebar() {
     location.pathname.startsWith(`${item.to}/`) ||
     (item.alias ?? []).some((a) => location.pathname.startsWith(a))
 
-  const seDeconnecter = () => {
-    deconnecter()
-    navigate('/connexion', { replace: true })
+  const deconnexion = async () => {
+    await seDeconnecter()
+    if (!estModeApi) navigate('/connexion', { replace: true })
   }
 
   return (
     <nav className={clsx('admin-sidebar', repliee && 'is-collapsed')} aria-label="Navigation principale">
       <div className="admin-sidebar__header">
         {!repliee ? (
-          <button type="button" className="admin-sidebar__toggle" onClick={toggle} aria-label="Replier le menu">
+          <button
+            type="button"
+            className="admin-sidebar__toggle"
+            onClick={toggle}
+            aria-label="Replier le menu"
+          >
             <FiChevronLeft size={18} aria-hidden="true" />
           </button>
         ) : null}
         <NavLink to="/commandes" className="admin-sidebar__brand" aria-label="Accueil Ecare CIMAR">
-          <img src="/media/CIMAR_LOGO_Horizontal.svg" alt="CIMAR" className={repliee ? 'brand--mini' : 'brand--full'} />
+          <img
+            src="/media/CIMAR_LOGO_Horizontal.svg"
+            alt="CIMAR"
+            className={repliee ? 'brand--mini' : 'brand--full'}
+          />
         </NavLink>
         {repliee ? (
-          <button type="button" className="admin-sidebar__toggle" onClick={toggle} aria-label="Déplier le menu">
+          <button
+            type="button"
+            className="admin-sidebar__toggle"
+            onClick={toggle}
+            aria-label="Déplier le menu"
+          >
             <FiChevronRight size={18} aria-hidden="true" />
           </button>
         ) : null}
@@ -150,7 +166,10 @@ export function AdminSidebar() {
                     <span className="admin-sidebar__label">
                       {item.label}
                       {item.id === 'synchronisation' && enAttenteSynchro > 0 ? (
-                        <span className="admin-sidebar__badge" aria-label={`${enAttenteSynchro} opérations en attente`}>
+                        <span
+                          className="admin-sidebar__badge"
+                          aria-label={`${enAttenteSynchro} opérations en attente`}
+                        >
                           {enAttenteSynchro}
                         </span>
                       ) : null}
@@ -166,13 +185,19 @@ export function AdminSidebar() {
       <div className="admin-sidebar__footer">
         {!repliee ? (
           <div className="admin-sidebar__user">
-            <div className="user-name">{utilisateur?.nom ?? 'Agent'}</div>
-            <div className="user-role">
-              {ROLE_LABELS[role]} · Usine M102 Marrakech
+            <div className="user-name" title={utilisateur?.email}>
+              {utilisateur?.nom ?? 'Agent'}
             </div>
+            <div className="user-role">{ROLE_LABELS[role]} · Usine M102 Marrakech</div>
           </div>
         ) : null}
-        <button type="button" className="admin-sidebar__logout" onClick={seDeconnecter} aria-label="Déconnexion" title="Déconnexion">
+        <button
+          type="button"
+          className="admin-sidebar__logout"
+          onClick={() => void deconnexion()}
+          aria-label="Déconnexion"
+          title="Déconnexion"
+        >
           <FiLogOut size={16} aria-hidden="true" />
         </button>
       </div>

@@ -922,6 +922,22 @@
   list-style: none;
 }
 
+.combobox__source {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 6px;
+  font-size: 11px;
+  color: var(--cimar-muted-2);
+}
+
+.form-help--warn {
+  color: var(--cimar-pending);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .combobox__option {
   padding: 8px 10px;
   border-radius: var(--radius-control-sm);
@@ -1920,17 +1936,6 @@
   padding-top: 2mm;
 }
 
-.sheet__provisional {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-weight: 700;
-  color: var(--cimar-pending);
-  border: 1px dashed var(--cimar-pending);
-  padding: 1mm 2mm;
-  border-radius: 2mm;
-  font-size: 10px;
-}
 
 /* ========== Étapes de synchro ========== */
 .sync-steps {
@@ -2212,5 +2217,137 @@
 
   &.is-late {
     color: var(--cimar-danger);
+  }
+}
+
+/* ========== Page d'erreur (ErrorBoundary) et attente d'authentification ========== */
+.error-page {
+  min-height: 60vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+  background: var(--cimar-bg);
+}
+
+.error-page__card {
+  background: var(--cimar-card);
+  border: 1px solid var(--cimar-border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-kpi);
+  padding: 36px 40px;
+  max-width: 620px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+
+  h1 {
+    font-size: 24px;
+    font-weight: 900;
+    color: var(--cimar-ink-strong);
+  }
+
+  p {
+    color: var(--cimar-muted);
+    font-size: 15px;
+  }
+
+  .btn-row {
+    margin-top: 8px;
+  }
+}
+
+.error-page__icon {
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-panel);
+  background: var(--cimar-danger-soft);
+  color: var(--cimar-danger);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  svg {
+    width: 26px;
+    height: 26px;
+  }
+}
+
+.error-page__meta {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: var(--radius-control);
+  background: var(--cimar-fill-soft);
+  border: 1px solid var(--cimar-border);
+
+  dt {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--cimar-kpi-title);
+    margin-bottom: 4px;
+  }
+
+  dd {
+    font-size: 14px;
+    color: var(--cimar-ink);
+    word-break: break-word;
+  }
+}
+
+.auth-pending {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--cimar-muted);
+  font-size: 15px;
+  background: var(--cimar-bg);
+
+  svg {
+    animation: tourner 1s linear infinite;
+  }
+}
+
+.demo-bar .text-dim {
+  opacity: 0.7;
+  font-weight: 400;
+}
+
+/* ========== État de chargement / erreur des listes ========== */
+.loading-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--cimar-muted);
+  font-size: 13px;
+
+  svg {
+    animation: tourner 1s linear infinite;
+  }
+}
+
+@keyframes tourner {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.form-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--cimar-label);
+  cursor: pointer;
+
+  input {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--cimar-action);
   }
 }

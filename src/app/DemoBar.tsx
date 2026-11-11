@@ -1,15 +1,62 @@
 import clsx from 'clsx'
-import { FiChevronDown, FiChevronUp, FiRotateCcw, FiSliders } from 'react-icons/fi'
+import { FiChevronDown, FiChevronUp, FiCloud, FiRefreshCw, FiRotateCcw, FiSliders } from 'react-icons/fi'
+import { estModeApi } from '@/config'
 import { useAppStore } from '@/store/useAppStore'
 import { services } from '@/services'
 import type { Role } from '@/types'
 import { ROLE_LABELS } from '@/types'
+import { formatHeure } from '@/utils/format'
 
 const ROLES: Role[] = ['Guichet', 'PontBascule', 'Admin']
 
-export function DemoBar() {
-  const ouverte = useAppStore((s) => s.demoBarOuverte)
-  const toggle = useAppStore((s) => s.toggleDemoBar)
+/** Mode api : la barre devient un bandeau d'état en lecture seule (SAP sondé toutes les 30 s, rôle du jeton). */
+function BarreApi({ ouverte, toggle }: { ouverte: boolean; toggle: () => void }) {
+  const sapOnline = useAppStore((s) => s.sapOnline)
+  const sapStatut = useAppStore((s) => s.sapStatut)
+  const role = useAppStore((s) => s.role)
+  const chargement = useAppStore((s) => s.chargement.commandes)
+  const refresh = useAppStore((s) => s.refresh)
+
+  if (!ouverte) {
+    return (
+      <div className="demo-bar is-collapsed" role="region" aria-label="État de l'API">
+        <button type="button" className="btn-ghost btn-sm" onClick={toggle} aria-expanded="false">
+          <FiChevronDown aria-hidden="true" /> État (SAP {sapOnline ? 'en ligne' : 'hors ligne'})
+        </button>
+      </div>
+    )
+  }
+  return (
+    <div className="demo-bar" role="region" aria-label="État de l'API">
+      <span className="demo-bar__title">
+        <FiCloud aria-hidden="true" /> Mode API
+      </span>
+      <span>
+        SAP : <strong>{sapOnline ? 'En ligne' : 'Hors ligne'}</strong>
+        {sapStatut ? (
+          <span className="text-dim">
+            {' '}
+            · vérifié {formatHeure(sapStatut.verifieAtUtc, true)}
+            {sapStatut.latenceMs !== undefined ? ` · ${sapStatut.latenceMs} ms` : ''}
+            {sapStatut.detail ? ` · ${sapStatut.detail}` : ''}
+          </span>
+        ) : null}
+      </span>
+      <span className="demo-bar__group">
+        Rôle (jeton Entra) : <strong>{ROLE_LABELS[role]}</strong>
+      </span>
+      <span className="demo-bar__spacer" />
+      <button type="button" className="btn-ghost btn-sm" onClick={() => void refresh()} disabled={chargement}>
+        <FiRefreshCw aria-hidden="true" /> {chargement ? 'Chargement…' : 'Actualiser'}
+      </button>
+      <button type="button" className="btn-ghost btn-sm" onClick={toggle} aria-expanded="true">
+        <FiChevronUp aria-hidden="true" /> Masquer
+      </button>
+    </div>
+  )
+}
+
+function BarreDemo({ ouverte, toggle }: { ouverte: boolean; toggle: () => void }) {
   const sapOnline = useAppStore((s) => s.sapOnline)
   const setSapOnline = useAppStore((s) => s.setSapOnline)
   const role = useAppStore((s) => s.role)
@@ -24,7 +71,11 @@ export function DemoBar() {
   }
 
   return (
-    <div className={clsx('demo-bar', !ouverte && 'is-collapsed')} role="region" aria-label="Barre de démonstration">
+    <div
+      className={clsx('demo-bar', !ouverte && 'is-collapsed')}
+      role="region"
+      aria-label="Barre de démonstration"
+    >
       {ouverte ? (
         <>
           <span className="demo-bar__title">
@@ -61,9 +112,20 @@ export function DemoBar() {
         </>
       ) : (
         <button type="button" className="btn-ghost btn-sm" onClick={toggle} aria-expanded="false">
-          <FiChevronDown aria-hidden="true" /> Barre de démonstration (SAP {sapOnline ? 'en ligne' : 'hors ligne'})
+          <FiChevronDown aria-hidden="true" /> Barre de démonstration (SAP{' '}
+          {sapOnline ? 'en ligne' : 'hors ligne'})
         </button>
       )}
     </div>
+  )
+}
+
+export function DemoBar() {
+  const ouverte = useAppStore((s) => s.demoBarOuverte)
+  const toggle = useAppStore((s) => s.toggleDemoBar)
+  return estModeApi ? (
+    <BarreApi ouverte={ouverte} toggle={toggle} />
+  ) : (
+    <BarreDemo ouverte={ouverte} toggle={toggle} />
   )
 }

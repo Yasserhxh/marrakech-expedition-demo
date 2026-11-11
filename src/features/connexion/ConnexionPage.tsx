@@ -1,26 +1,36 @@
 import { useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { FiLoader, FiMapPin } from 'react-icons/fi'
+import { useAuth } from '@/auth/useAuth'
+import { estModeApi } from '@/config'
 import { useAppStore } from '@/store/useAppStore'
 
-const DELAI_CONNEXION_SIMULEE_MS = 700
-
 export function ConnexionPage() {
-  const utilisateur = useAppStore((s) => s.utilisateur)
-  const connecter = useAppStore((s) => s.connecter)
+  const { connecte, enCours, seConnecter } = useAuth()
+  const pousserToast = useAppStore((s) => s.pousserToast)
   const navigate = useNavigate()
   const location = useLocation()
-  const [enCours, setEnCours] = useState(false)
+  const [clic, setClic] = useState(false)
 
-  if (utilisateur) return <Navigate to="/commandes" replace />
+  if (connecte) {
+    const destination = (location.state as { from?: string } | null)?.from ?? '/commandes'
+    return <Navigate to={destination} replace />
+  }
 
-  const seConnecter = () => {
-    setEnCours(true)
-    window.setTimeout(() => {
-      connecter({ nom: 'Yasmine EL FASSI', email: 'y.elfassi@cimar.ma' })
-      const destination = (location.state as { from?: string } | null)?.from ?? '/commandes'
-      navigate(destination, { replace: true })
-    }, DELAI_CONNEXION_SIMULEE_MS)
+  const connexionEnCours = clic || enCours
+
+  const onConnecter = async () => {
+    setClic(true)
+    try {
+      await seConnecter()
+      if (!estModeApi) {
+        const destination = (location.state as { from?: string } | null)?.from ?? '/commandes'
+        navigate(destination, { replace: true })
+      }
+    } catch (e) {
+      setClic(false)
+      pousserToast('error', e instanceof Error ? e.message : 'Connexion impossible')
+    }
   }
 
   return (
@@ -35,8 +45,13 @@ export function ConnexionPage() {
           Guichet, pont-bascule et synchronisation SAP pour l'expédition ciment, y compris lorsque SAP est
           indisponible.
         </p>
-        <button type="button" className="btn-microsoft" onClick={seConnecter} disabled={enCours}>
-          {enCours ? (
+        <button
+          type="button"
+          className="btn-microsoft"
+          onClick={() => void onConnecter()}
+          disabled={connexionEnCours}
+        >
+          {connexionEnCours ? (
             <FiLoader aria-hidden="true" />
           ) : (
             <span className="ms-logo" aria-hidden="true">
@@ -46,18 +61,20 @@ export function ConnexionPage() {
               <span />
             </span>
           )}
-          {enCours ? 'Connexion en cours…' : 'Se connecter avec Microsoft'}
+          {connexionEnCours ? 'Connexion en cours…' : 'Se connecter avec Microsoft'}
         </button>
         <p style={{ fontSize: 13 }}>
-          Maquette : la connexion Microsoft Entra ID est simulée, aucune donnée n'est envoyée.
+          {estModeApi
+            ? 'Connexion Microsoft Entra ID (redirection vers login.microsoftonline.com).'
+            : "Maquette : la connexion Microsoft Entra ID est simulée, aucune donnée n'est envoyée."}
         </p>
       </section>
       <aside className="login-hero" aria-hidden="true">
         <div>
           <h2>Continuer à expédier, même sans SAP</h2>
           <p>
-            Commandes locales, bons de chargement et de livraison provisoires, puis synchronisation automatique
-            dès le retour de SAP.
+            Commandes locales, bons de chargement et de livraison, puis synchronisation
+            automatique dès le retour de SAP.
           </p>
         </div>
       </aside>

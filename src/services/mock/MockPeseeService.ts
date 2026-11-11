@@ -38,6 +38,14 @@ function exigerPesee(commandeId: number): Commande {
 }
 
 export const mockPeseeService: PeseeService = {
+  async demarrer() {
+    useAppStore.getState().setPoids({ connecte: true, etat: 'Connected', stale: false })
+  },
+
+  async arreter() {
+    arreter()
+  },
+
   selectionnerPont(pont: Pont) {
     arreter()
     useAppStore.getState().setPoids({ pont, lectureKg: 0, stable: false, enCours: false })
@@ -47,7 +55,9 @@ export const mockPeseeService: PeseeService = {
     arreter()
     const cible = Math.max(0, Math.round(cibleKg))
     let pas = 0
-    useAppStore.getState().setPoids({ enCours: true, stable: false, lectureKg: 0, connecte: true })
+    useAppStore
+      .getState()
+      .setPoids({ enCours: true, stable: false, lectureKg: 0, connecte: true, etat: 'Connected', stale: false })
     minuteur = window.setInterval(() => {
       pas += 1
       let valeur: number
@@ -71,7 +81,7 @@ export const mockPeseeService: PeseeService = {
     useAppStore.getState().setPoids({ enCours: false, stable: false, lectureKg: 0 })
   },
 
-  validerTare(commandeId) {
+  async validerTare(commandeId) {
     const c = exigerPesee(commandeId)
     if (c.statut !== 'EntreeAutorisee')
       throw new Error('La pesée d’entrée n’est pas autorisée pour cette commande')
@@ -95,7 +105,7 @@ export const mockPeseeService: PeseeService = {
     return { ...c, ...patch }
   },
 
-  validerBrut(commandeId) {
+  async validerBrut(commandeId) {
     const c = exigerPesee(commandeId)
     if (c.statut !== 'SortieAutorisee' || !c.peseeEntree) {
       throw new Error('Le second pesage n’est pas autorisé pour cette commande')
@@ -123,7 +133,7 @@ export const mockPeseeService: PeseeService = {
       sortieUtc: maintenant,
       peseeSortie: { type: 'Sortie', pont: st.poids.pont, poidsKg: brutKg, horodatageUtc: maintenant },
       bonDeLivraison: {
-        numeroProvisoire: c.numeroSap ?? c.id.toString(),
+        numeroLocal: c.id.toString(),
         numeroSap: numeroSapBl,
         dateUtc: maintenant,
         brutKg,
@@ -147,7 +157,7 @@ export const mockPeseeService: PeseeService = {
       'success',
       numeroSapBl
         ? `BL SAP ${numeroSapBl} émis pour ${numeroAffiche(c)}`
-        : `BL provisoire émis pour ${numeroAffiche(c)} — en attente de synchronisation SAP`,
+        : `Bon de livraison émis pour ${numeroAffiche(c)}`,
     )
     return { ...c, ...patch }
   },

@@ -12,7 +12,15 @@ const PREFIXES: Record<ReferentielKind, string> = {
 }
 
 export const mockReferentielsService: ReferentielsService = {
-  ajouter<K extends ReferentielKind>(kind: K, element: NouvelElement<K>) {
+  async charger() {
+    return useAppStore.getState().referentiels
+  },
+
+  async chantiersDuClient(clientId) {
+    return useAppStore.getState().referentiels.chantiers.filter((c) => c.clientId === clientId)
+  },
+
+  async ajouter<K extends ReferentielKind>(kind: K, element: NouvelElement<K>) {
     const st = useAppStore.getState()
     const liste = st.referentiels[kind] as Referentiels[K]
     const id = `${PREFIXES[kind]}${liste.length + 1}-${Date.now().toString(36)}`

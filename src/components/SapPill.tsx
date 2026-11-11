@@ -9,7 +9,7 @@ export function SapPill() {
       className={clsx('sap-pill', sapOnline ? 'is-online' : 'is-offline')}
       role="status"
       aria-live="polite"
-      title={sapOnline ? 'Connexion SAP opérationnelle' : 'SAP injoignable : mode dégradé, commandes locales et BL provisoires'}
+      title={sapOnline ? 'Connexion SAP opérationnelle' : 'SAP injoignable : mode dégradé, commandes et BL locaux en file de synchronisation'}
     >
       <span className="sap-pill__dot" aria-hidden="true" />
       {sapOnline ? <FiWifi size={14} aria-hidden="true" /> : <FiWifiOff size={14} aria-hidden="true" />}

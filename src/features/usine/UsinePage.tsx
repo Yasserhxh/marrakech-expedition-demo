@@ -7,7 +7,6 @@ import { KpiCard } from '@/components/KpiCard'
 import { DataTable, type Column } from '@/components/DataTable'
 import { EmptyState } from '@/components/EmptyState'
 import { OrigineBadge, StatutBadge } from '@/components/StatusBadge'
-import { services } from '@/services'
 import { useAppStore, useReferentielLookup, numeroAffiche } from '@/store/useAppStore'
 import type { Commande } from '@/types'
 import { formatDuree, formatHeure, formatKg, formatTonnes, minutesEcoulees } from '@/utils/format'
@@ -19,37 +18,45 @@ export function UsinePage() {
   const now = useNow(30000)
   const r = useReferentielLookup()
   const toutes = useAppStore((s) => s.commandes)
+  const autoriserSecondPesage = useAppStore((s) => s.autoriserSecondPesage)
   const commandes = useMemo(
     () => toutes.filter((c) => c.statut === 'DansUsine' || c.statut === 'SortieAutorisee'),
     [toutes],
   )
 
-  const enRetard = commandes.filter((c) => c.entreeUtc && minutesEcoulees(c.entreeUtc, now) > SEUIL_ALERTE_MIN).length
+  const enRetard = commandes.filter(
+    (c) => c.entreeUtc && minutesEcoulees(c.entreeUtc, now) > SEUIL_ALERTE_MIN,
+  ).length
 
   const colonnes: Column<Commande>[] = [
-    { key: 'numero', header: 'N°', render: (c) => <span className="code-chip">{numeroAffiche(c)}</span>, sortValue: numeroAffiche },
+    {
+      key: 'numero',
+      header: 'N°',
+      render: (c) => <span className="code-chip">{numeroAffiche(c)}</span>,
+      sortValue: numeroAffiche,
+    },
     { key: 'origine', header: 'Origine', render: (c) => <OrigineBadge origine={c.origine} /> },
     {
       key: 'client',
       header: 'Client',
       render: (c) => (
         <span className="cell-main">
-          {r.client(c.clientId)?.nom ?? '—'}
-          <span className="cell-sub">{r.chantier(c.chantierId)?.nom}</span>
+          {r.client(c)?.nom ?? '—'}
+          <span className="cell-sub">{r.chantier(c)?.nom}</span>
         </span>
       ),
-      sortValue: (c) => r.client(c.clientId)?.nom ?? '',
+      sortValue: (c) => r.client(c)?.nom ?? '',
     },
     {
       key: 'produit',
       header: 'Produit',
-      render: (c) => `${r.produit(c.produitId)?.libelle ?? '—'} · ${formatTonnes(c.quantiteT)}`,
+      render: (c) => `${r.produit(c)?.libelle ?? '—'} · ${formatTonnes(c.quantiteT)}`,
     },
     {
       key: 'camion',
       header: 'Camion',
-      render: (c) => <span className="mono">{r.camion(c.camionId)?.immatriculation ?? '—'}</span>,
-      sortValue: (c) => r.camion(c.camionId)?.immatriculation ?? '',
+      render: (c) => <span className="mono">{r.camion(c)?.immatriculation ?? '—'}</span>,
+      sortValue: (c) => r.camion(c)?.immatriculation ?? '',
     },
     {
       key: 'entree',
@@ -72,7 +79,10 @@ export function UsinePage() {
         const min = minutesEcoulees(c.entreeUtc, now)
         const tard = min > SEUIL_ALERTE_MIN
         return (
-          <span className={clsx('time-elapsed', tard && 'is-late')} title={tard ? 'Présence supérieure à 90 min' : undefined}>
+          <span
+            className={clsx('time-elapsed', tard && 'is-late')}
+            title={tard ? 'Présence supérieure à 90 min' : undefined}
+          >
             {tard ? <FiAlertTriangle aria-hidden="true" /> : <FiClock aria-hidden="true" />}
             {formatDuree(min)}
             {tard ? <span className="badge badge--danger">&gt; 90 min</span> : null}
@@ -90,7 +100,7 @@ export function UsinePage() {
           <button
             type="button"
             className="btn-primary btn-sm"
-            onClick={() => services.commandes.autoriserSecondPesage(c.id)}
+            onClick={() => void autoriserSecondPesage(c.id)}
           >
             <FiLogOut aria-hidden="true" /> Autoriser le 2ᵉ pesage
           </button>
@@ -103,7 +113,10 @@ export function UsinePage() {
   ]
 
   return (
-    <PageShell title="Dans l'usine" subtitle="Camions ayant passé la pesée d'entrée, en chargement ou en attente du second pesage">
+    <PageShell
+      title="Dans l'usine"
+      subtitle="Camions ayant passé la pesée d'entrée, en chargement ou en attente du second pesage"
+    >
       <div className="kpi-row">
         <KpiCard title="Camions dans l'usine" value={commandes.length} icon={<FiHome />} />
         <KpiCard

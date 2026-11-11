@@ -1,7 +1,8 @@
 # Marrakech Expédition — maquette React statique
 
-Prototype **statique** (aucun backend, données simulées en mémoire) de l'application d'expédition ciment de l'usine
-de Marrakech (M102), utilisable pendant une indisponibilité SAP puis synchronisée. Même charte que le back-office
+Application React de l'expédition ciment de l'usine de Marrakech (M102), utilisable pendant une indisponibilité SAP
+puis synchronisée. Par défaut elle tourne en **mode mock** (aucun backend, données simulées en mémoire) ; le **mode api**
+la branche sur l'API Marrakech avec Microsoft Entra ID (voir « Brancher la vraie API »). Même charte que le back-office
 `Ecare-FrontUi` (tokens CIMAR, coque admin, tableaux, badges). Spécification : `docs/web-prototype-spec.md`,
 charte : `docs/brand/brand-tokens.md`.
 
@@ -17,10 +18,12 @@ npm run build          # tsc -b && vite build  → dist/
 npm run preview        # sert dist/ sur http://localhost:4174
 npm run lint           # eslint, 0 avertissement toléré
 npm run typecheck      # tsc --noEmit
+npm run test           # vitest (jsdom + Testing Library)
 npm run format         # prettier
 ```
 
-Stack : Vite 5, React 18, TypeScript strict, react-router-dom 6, zustand 5, react-icons (Feather), SCSS, clsx.
+Stack : Vite 5, React 18, TypeScript strict, react-router-dom 6, zustand 5, react-icons (Feather), SCSS, clsx,
+@azure/msal-browser + @azure/msal-react (mode api), Vitest + Testing Library (tests).
 
 ## Structure
 
@@ -34,8 +37,13 @@ src/
                   sortie), usine, synchronisation, referentiels, monitoring
   store/          useAppStore.ts — état zustand : commandes, référentiels, file de synchro, compteurs (BC, n° SAP,
                   n° BL), rôle, SAP en ligne/hors ligne, lecture du pont, toasts
-  services/       types.ts — interfaces CommandesService, PeseeService, SyncService, ReferentielsService
-                  mock/     — implémentations en mémoire (adossées au store) ; index.ts = point de branchement
+  services/       types.ts — interfaces CommandesService, PeseeService, SyncService, ReferentielsService, SapService
+                  mock/     — implémentations en mémoire (adossées au store)
+                  http/     — apiClient, dto, mappers, HttpCommandesService, HttpReferentielsService, HttpSapService
+                  index.ts  — fabrique mock | api selon VITE_DATA_MODE
+  auth/           MSAL (config, instance, jeton), AuthProvider, useAuth (mock | Entra ID)
+  monitoring/     clientLogs.ts — rapport d'erreurs front vers /api/client-logs (mode api)
+  config.ts       lecture et validation des variables VITE_*
   data/mock.ts    jeu de données Marrakech : 6 clients, 10 chantiers, 4 produits (codes SAP 18 chiffres),
                   4 transporteurs, 10 camions (immatriculations 12345-A-6), 8 chauffeurs, 12 commandes du jour
   styles/         tokens.scss (seul fichier avec des couleurs), global.scss, components.scss, print.scss
@@ -45,19 +53,103 @@ src/
 
 ## Brancher la vraie API
 
-Les écrans ne parlent jamais à `fetch` : ils lisent l'état via `useAppStore` et déclenchent les actions via
-`services.*`. Pour connecter l'API Marrakech (`src/Marrakech.Api`) :
+L'application a deux modes, choisis au build/démarrage par `VITE_DATA_MODE` (fichier `.env`, voir `.env.example`) :
 
-1. Créer `src/services/http/` avec des classes qui implémentent les interfaces de `src/services/types.ts`
-   (`CommandesService`, `PeseeService`, `SyncService`, `ReferentielsService`). Client HTTP unique avec en-tête
-   `X-Correlation-Id`, erreurs RFC 7807 remontées en toast.
-2. Remplacer les instances dans `src/services/index.ts`.
-3. Alimenter le store depuis l'API (chargement initial + SignalR pour les pesées et la file de synchro) ;
-   `useAppStore` n'expose que des mutateurs bas niveau (`upsertCommande`, `patchSyncOp`, `setPoids`…).
-4. Supprimer la barre de démonstration (`src/app/DemoBar.tsx`) et le panneau « Simuler un camion » des pages de pesée.
+| Mode | Données | Authentification | Usage |
+|---|---|---|---|
+| `mock` (défaut) | en mémoire (`src/data/mock.ts`) | simulée | démo client, développement front sans backend |
+| `api` | API Marrakech (`src/Marrakech.Api`, contrat `docs/phase2-api-contract.md`) | Microsoft Entra ID (MSAL) | intégration, recette, production |
+
+### Variables d'environnement
+
+```bash
+cp .env.example .env         # .env et .env.* sont ignorés par git (seul .env.example est versionné)
+```
+
+| Variable | Exemple | Rôle |
+|---|---|---|
+| `VITE_DATA_MODE` | `api` | `mock` ou `api` |
+| `VITE_API_BASE_URL` | `https://localhost:7201` | origine de l'API (les routes sont préfixées `/api` par le client) |
+| `VITE_AAD_CLIENT_ID` | `1111…` | client ID de l'app registration SPA |
+| `VITE_AAD_TENANT_ID` | `2222…` | tenant Entra ID |
+| `VITE_API_SCOPE` | `api://<clientId API>/.default` | scope demandé pour le jeton d'accès |
+
+En mode `api`, `src/config.ts` valide ces variables au démarrage : toute valeur manquante ou mal formée bloque
+l'application sur une page « Configuration invalide » (pas de démarrage silencieux en mode dégradé).
+
+```bash
+VITE_DATA_MODE=api npm run dev      # ou renseigner .env puis npm run dev
+npm run test                        # Vitest : config, apiClient (ProblemDetails, X-Correlation-Id), mappers, validation, rapport d'erreurs, ErrorBoundary
+```
+
+### Enregistrement d'application Entra ID (à faire par l'administrateur du tenant)
+
+1. **App registration « Marrakech Expédition — SPA »** : plateforme *Single-page application*, Redirect URIs =
+   `http://localhost:5174` (dev), `http://localhost:4174` (preview) et l'URL publique de l'App Service / Static Web App.
+   Pas de secret client (flux PKCE). Logout URL : `<origine>/connexion`.
+2. **App registration de l'API** (ou la même) : *Expose an API* → scope `access_as_user` (URI `api://<clientId API>`),
+   puis dans l'app SPA : *API permissions* → ajouter ce scope, consentement administrateur. Le front demande
+   `api://<clientId API>/.default`.
+3. **App roles** sur l'application de l'API : `Guichet`, `PontBascule`, `Admin` (type *Users/Groups*), puis affectation
+   des utilisateurs/groupes dans *Enterprise applications*. Le claim `roles` du jeton alimente le rôle de l'interface
+   (`Admin` > `Guichet` > `PontBascule` ; sans rôle : `PontBascule`, l'API répond 403 de toute façon).
+4. Claims utilisés : `name` (pied de menu), `preferred_username` (info-bulle), `roles`.
+5. Côté API : `AzureAd:ClientId` / `TenantId` identiques, CORS autorisant l'origine du front.
+
+### Architecture du mode API
+
+```
+src/config.ts                 lecture + validation des variables VITE_*
+src/auth/                     msalConfig (SessionStorage, jamais localStorage), msalInstance, token (acquireTokenSilent
+                              → redirect), AuthProvider (MsalProvider en mode api uniquement), useAuth (mock | MSAL)
+src/services/http/apiClient   fetch unique : base URL, Bearer, X-Correlation-Id (crypto.randomUUID) par requête,
+                              JSON, délai 15 s (AbortController), ProblemDetails → ApiError { status, title, detail,
+                              correlationId, errors }, 401 → login, 409 → toast avec le détail
+src/services/http/dto.ts      DTO du contrat (camelCase)
+src/services/http/mappers.ts  DTO ↔ modèle de l'app (codes = ids, CFR/EXW ↔ Rendu/Départ, Vrac/Sac, ErreurSync…)
+src/services/http/Http*       CommandesService, ReferentielsService, SapService
+src/services/index.ts         fabrique mock | api selon VITE_DATA_MODE
+src/store/useAppStore.ts      refresh(), chargerCommandes/Detail/Referentiels/Chantiers, creerCommande, autoriser*,
+                              annulerCommande, rafraichirSapStatut ; état chargement / erreurChargement / synthese
+src/monitoring/clientLogs.ts  window.onerror + unhandledrejection + ErrorBoundary → POST /api/client-logs
+                              (10 envois/min max, dédoublonnage, URL sans query) ; no-op en mode mock
+```
+
+Comportements propres au mode api : chargement initial + bouton « Actualiser » (liste, détail à l'ouverture du panneau,
+synthèse KPI), sonde `/sap/statut` toutes les 30 s qui pilote la pastille « SAP en ligne » (la barre du haut devient un
+bandeau d'état en lecture seule), erreurs réseau/délai/ProblemDetails affichées avec leur ID de corrélation, erreurs 400
+de validation rendues champ par champ dans « Nouvelle commande ». Le formulaire applique les règles du contrat avant
+l'envoi : quantité > 0 et ≤ 60 t (3 décimales), immatriculation `^\d{1,6}-[A-Z]{1,2}-\d{1,2}$` sauf « immatriculation
+libre », transporteur obligatoire en Rendu (CFR), codes SAP `^\d{1,10}$`, chantier limité au client quand la liste vient de SAP.
+
+**Recherche SAP à la création (phase 2b)** : client, chantier, transporteur et camion se saisissent par **code SAP**
+(`CodeSapLookup`, 300 ms de debounce, 3 chiffres minimum pour un client) via `GET /api/sap/clients?prefixe=`,
+`/api/sap/clients/{code}/chantiers`, `/api/sap/transporteurs/{code}`, `/api/sap/camions/{code}` ; la liste porte un badge
+« SAP » ou « Cache local ». SAP hors ligne ou code inconnu : le code tapé est accepté tel quel (« Code non vérifié »),
+sans nom, et l'API tranchera à la synchronisation.
+
+**Pesée en direct (phase 3b)** : `HttpPeseeService` ouvre le hub SignalR `/hubs/weight` (`@microsoft/signalr`,
+`SubscribeDevice`, reconnexion automatique), lit `GET /api/pesees/devices` au montage, puis `POST /api/commandes/{id}/pesees/entree|sortie`
+avec le poids affiché et le `rowVersion`. Le bouton n'est actif que si la lecture est stable, récente (< 10 s) et le pont
+connecté ; bandeau « Pont déconnecté » sinon ; un 409 (lecture différente, écart > 10 %, statut) est affiché en toast et la
+commande relue.
+
+### Limites actuelles (mode api)
+
+- **Synchronisation** (`SyncService`) reste simulée en mémoire (phase 5) : bandeau « Démonstration » sur cet écran ;
+  la file de synchro affichée est une projection en lecture seule de `commande.synchro`.
+- **Monitoring** : données simulées (`buildMonitoring`), l'endpoint `/api/monitoring/summary` n'est pas encore consommé.
+- **Chantiers** : pas d'endpoint global, ils sont chargés par client (formulaire, onglet Référentiels).
+- **Pagination** : la liste demande `pageSize=200` sur le jour courant ; au-delà, seules les 200 premières sont affichées.
+- **Détail de commande** : les sous-objets `pesees` / `bonDeChargement` / `bonDeLivraison` / `syncOperations` sont lus
+  de façon tolérante (`src/services/http/dto.ts`) en attendant leur forme définitive dans le contrat.
+- **Pont bascule** envoyé à `autoriser-entree` / `autoriser-sortie` : celui sélectionné dans l'écran de pesée (PB22 par défaut).
+- **SignalR** : seul le hub poids est branché ; la file de synchro n'est pas poussée en temps réel.
+- Pas de `.env.production` versionné : les variables sont injectées par la CI (`VITE_*` au build).
 
 Règles reproduites de la production : stabilité = 15 lectures identiques ≥ 2 000 kg à 5 Hz ; net = brut − tare ;
-BC `BC-MRK-aaaa-nnnnnn` ; BL provisoire = ID commande, n° SAP (`0080…`) attribué à la synchro ;
+BC `BC-MRK-aaaa-nnnnnn` ; BL imprimé sous le N° SAP s'il existe, sinon l'ID commande (même gabarit que le BL Ecare, aucune
+mention « provisoire ») ; n° SAP (`0080…`) renseigné à la synchro ;
 file `CreerCommande → Livraison → LireBL`.
 
 ## Parcours de démonstration
@@ -80,7 +172,7 @@ La barre noire en haut (repliable) permet de basculer **SAP En ligne / Hors lign
    « Ouvrir la pesée de sortie ».
 7. `/pesee/sortie/:id` — brut en direct, tare rappelée, **net calculé** et écart (vert ±2 %, orange ±5 %, rouge
    au-delà : modifier le poids simulé pour le montrer). « Valider et imprimer le Bon de livraison » → aperçu BL
-   (poids `43,160`, mention « Document provisoire — en attente de synchronisation SAP »), commande `Livrée`,
+   (poids `43,160`, N° = ID commande tant que SAP n'a pas répondu), commande `Livrée`,
    synchro `En attente`.
 8. Basculer **SAP En ligne** dans la barre de démo → `/synchronisation` : ping SAP, file des opérations,
    **« Tout synchroniser »** anime `Créer commande` (1,2 s) → `Livraison` (1,2 s) → `Lire n° BL` (0,8 s) par
@@ -93,4 +185,4 @@ La barre noire en haut (repliable) permet de basculer **SAP En ligne / Hors lign
 
 ## Hors périmètre
 
-Authentification réelle, SignalR, appels HTTP, persistance, impression pilotée (seul `window.print()` est utilisé).
+SignalR, pesées et synchronisation réelles (phases 3 et 5), impression pilotée (seul `window.print()` est utilisé).
