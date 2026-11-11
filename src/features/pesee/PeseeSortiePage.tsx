@@ -8,15 +8,13 @@ import { WeightDisplay } from '@/components/WeightDisplay'
 import { DocumentPreview } from '@/components/DocumentPreview'
 import { EmptyState } from '@/components/EmptyState'
 import { Notice } from '@/components/Notice'
-import { StatutBadge } from '@/components/StatusBadge'
+import { CommandePeseeResume } from '@/features/pesee/CommandePeseeResume'
 import { useCommande } from '@/features/commandes/hooks/useCommandes'
 import { useAutoriserSecondPesage, useValiderBrut } from '@/features/commandes/hooks/useCommandeMutations'
-import { useReferentielLookup } from '@/features/referentiels/hooks/useReferentiels'
 import { services } from '@/services'
 import { useAppStore } from '@/store/useAppStore'
 import type { Commande } from '@/types'
-import { numeroAffiche } from '@/utils/commande'
-import { ABSENT, formatKg, formatNombre, formatPourcentage, formatTonnes } from '@/utils/format'
+import { formatKg, formatPourcentage } from '@/utils/format'
 
 const KG_PAR_TONNE = 1000
 const ECART_OK = 0.02
@@ -48,7 +46,6 @@ export function PeseeSortiePage() {
   const sapOnline = useAppStore((s) => s.sapOnline)
   const validerBrut = useValiderBrut()
   const autoriser = useAutoriserSecondPesage()
-  const r = useReferentielLookup()
 
   const tareKg = commande?.peseeEntree?.poidsKg ?? 0
   const commandeKg = (commande?.quantiteT ?? 0) * KG_PAR_TONNE
@@ -83,54 +80,15 @@ export function PeseeSortiePage() {
     )
   }
 
-  const client = r.client(commande.clientId)
-  const chantier = r.chantier(commande.chantierId)
-  const produit = r.produit(commande.produitId)
-  const camion = r.camion(commande.camionId)
-  const chauffeur = r.chauffeur(commande.chauffeurId)
-
-  const brutKg = poids.lectureKg
-  const netKg = Math.max(0, brutKg - tareKg)
-  const ratio = commandeKg > 0 ? (netKg - commandeKg) / commandeKg : 0
-  const tone = toneEcart(ratio)
-
   const valider = () => {
     validerBrut.mutate(commande.id, { onSuccess: (suivante) => setConfirmee(suivante) })
   }
 
-  const entete = (
-    <div className="admin-card">
-      <div className="admin-card__head">
-        <h2 style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-          Commande <span className="code-chip">{numeroAffiche(commande)}</span>
-        </h2>
-        <StatutBadge statut={commande.statut} />
-      </div>
-      <dl className="detail-list cols-4">
-        <div>
-          <dt>Client</dt>
-          <dd>{client?.nom ?? ABSENT}</dd>
-        </div>
-        <div>
-          <dt>Chantier</dt>
-          <dd>{chantier ? `${chantier.nom}, ${chantier.ville}` : ABSENT}</dd>
-        </div>
-        <div>
-          <dt>Produit</dt>
-          <dd>
-            {produit?.libelle ?? ABSENT} · {formatTonnes(commande.quantiteT)}
-            {commande.nombreSacs ? ` (${formatNombre(commande.nombreSacs)} sacs)` : ''}
-          </dd>
-        </div>
-        <div>
-          <dt>Camion / chauffeur</dt>
-          <dd>
-            <span className="mono">{camion?.immatriculation ?? ABSENT}</span> · {chauffeur?.nom ?? ABSENT}
-          </dd>
-        </div>
-      </dl>
-    </div>
-  )
+  const entete = <CommandePeseeResume commande={commande} />
+  const brutKg = poids.lectureKg
+  const netKg = Math.max(0, brutKg - tareKg)
+  const ratio = commandeKg > 0 ? (netKg - commandeKg) / commandeKg : 0
+  const tone = toneEcart(ratio)
 
   if (confirmee?.bonDeLivraison) {
     const bon = confirmee.bonDeLivraison
@@ -218,6 +176,7 @@ export function PeseeSortiePage() {
             stable={poids.stable}
             derniereLectureUtc={poids.derniereLectureUtc}
             connecte={poids.connecte}
+            enCours={poids.enCours}
           />
 
           <div className="net-panel" style={{ marginTop: 16 }} aria-live="polite">
@@ -236,15 +195,21 @@ export function PeseeSortiePage() {
             </div>
           </div>
 
-          <div style={{ marginTop: 16 }}>
+          <div className="pesee-action">
             <Button size="lg" loading={validerBrut.isPending} disabled={!poids.stable} onClick={valider}>
               <FiCheck aria-hidden="true" /> Valider et imprimer le Bon de livraison
             </Button>
             {!poids.stable ? (
-              <p className="text-muted" style={{ fontSize: 12, marginTop: 6 }}>
-                Le bouton s'active dès que le poids brut est stable.
+              <p className="text-muted pesee-action__hint">
+                {!poids.connecte
+                  ? 'Pont déconnecté : la validation est bloquée.'
+                  : !poids.enCours
+                    ? 'Aucun camion sur le pont. La validation reste bloquée.'
+                    : 'Le bouton s’active dès que le poids brut est stable.'}
               </p>
-            ) : null}
+            ) : (
+              <p className="text-muted pesee-action__hint">Pesée stable : le brut peut être enregistré.</p>
+            )}
           </div>
         </div>
 
@@ -272,7 +237,7 @@ export function PeseeSortiePage() {
               </span>
             </div>
             <div className="btn-row">
-              <button type="button" className="btn-action" onClick={() => services.pesee.simulerCamion(cible)}>
+              <button type="button" className="btn-ghost" onClick={() => services.pesee.simulerCamion(cible)}>
                 <FiTruck aria-hidden="true" /> Simuler un camion
               </button>
               <button

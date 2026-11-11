@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { FiAlertTriangle, FiCheckCircle, FiClock, FiPrinter, FiRefreshCw, FiUnlock, FiWifi, FiWifiOff } from 'react-icons/fi'
+import { FiAlertTriangle, FiCheckCircle, FiClock, FiPrinter, FiRefreshCw, FiUnlock, FiWifi } from 'react-icons/fi'
 import { PageShell } from '@/components/PageShell'
 import { Button } from '@/components/Button'
 import { KpiCard } from '@/components/KpiCard'
@@ -8,6 +8,7 @@ import { EmptyState } from '@/components/EmptyState'
 import { Modal } from '@/components/Modal'
 import { Notice } from '@/components/Notice'
 import { DocumentPreview } from '@/components/DocumentPreview'
+import { InfoValue } from '@/components/InfoValue'
 import { SynchroBadge } from '@/components/StatusBadge'
 import { SyncSteps } from '@/components/SyncSteps'
 import { useCommandes } from '@/features/commandes/hooks/useCommandes'
@@ -24,7 +25,7 @@ import { useAppStore } from '@/store/useAppStore'
 import type { Commande, SyncOperation } from '@/types'
 import { numeroAffiche } from '@/utils/commande'
 import { messageErreur } from '@/utils/erreurs'
-import { ABSENT, formatDateTime, formatHeure } from '@/utils/format'
+import { ABSENT, formatHeure } from '@/utils/format'
 
 interface Ligne {
   op: SyncOperation
@@ -64,15 +65,15 @@ export function SynchronisationPage() {
     {
       key: 'commande',
       header: 'Commande',
+      width: '11rem',
       render: ({ commande }) => (
-        <span>
+        <InfoValue meta={r.client(commande.clientId)?.nom}>
           <span className="code-chip">{numeroAffiche(commande)}</span>
-          <span className="cell-sub">{r.client(commande.clientId)?.nom}</span>
-        </span>
+        </InfoValue>
       ),
       sortValue: ({ commande }) => numeroAffiche(commande),
     },
-    { key: 'etapes', header: 'Étapes', render: ({ op }) => <SyncSteps op={op} /> },
+    { key: 'etapes', header: 'Étapes', width: '16rem', render: ({ op }) => <SyncSteps op={op} /> },
     {
       key: 'statut',
       header: 'Statut',
@@ -91,6 +92,7 @@ export function SynchronisationPage() {
           ) : null}
         </span>
       ),
+      width: '8rem',
       sortValue: ({ op }) => op.statut,
     },
     {
@@ -98,6 +100,7 @@ export function SynchronisationPage() {
       header: 'Tentatives',
       align: 'right',
       render: ({ op }) => <span className="mono">{op.tentatives}</span>,
+      width: '6.5rem',
       sortValue: ({ op }) => op.tentatives,
     },
     {
@@ -112,10 +115,9 @@ export function SynchronisationPage() {
       render: ({ op, commande }) => {
         if (op.statut === 'Synchronisee') {
           return (
-            <span className="text-muted">
-              N° SAP <span className="mono">{commande.numeroSap}</span> · BL{' '}
-              <span className="mono">{commande.bonDeLivraison?.numeroSap}</span>
-            </span>
+            <InfoValue mono meta={commande.bonDeLivraison?.numeroSap ? `BL ${commande.bonDeLivraison.numeroSap}` : undefined} metaMono>
+              {commande.numeroSap ?? '—'}
+            </InfoValue>
           )
         }
         if (!op.message) return <span className="text-muted">—</span>
@@ -145,6 +147,7 @@ export function SynchronisationPage() {
     {
       key: 'actions',
       header: 'Actions',
+      width: '11rem',
       render: ({ op, commande }) => (
         <span className="btn-row" style={{ flexWrap: 'nowrap' }}>
           {op.statut === 'EnAttente' ? (
@@ -153,9 +156,10 @@ export function SynchronisationPage() {
               size="sm"
               loading={synchroniser.isPending && synchroniser.variables === op.id}
               disabled={!sapOnline || tout.isPending}
+              aria-label="Synchroniser"
               onClick={() => synchroniser.mutate(op.id)}
             >
-              <FiRefreshCw aria-hidden="true" /> Synchroniser
+              <FiRefreshCw aria-hidden="true" /> Sync
             </Button>
           ) : null}
           {op.statut === 'Erreur' ? (
@@ -169,8 +173,8 @@ export function SynchronisationPage() {
             </Button>
           ) : null}
           {op.statut === 'Synchronisee' && commande.bonDeLivraison ? (
-            <button type="button" className="btn-teal btn-sm" onClick={() => setBlAReimprimer(commande)}>
-              <FiPrinter aria-hidden="true" /> Réimprimer le BL
+            <button type="button" className="btn-quiet btn-sm" aria-label="Réimprimer le BL" onClick={() => setBlAReimprimer(commande)}>
+              <FiPrinter aria-hidden="true" /> BL
             </button>
           ) : null}
         </span>
@@ -183,7 +187,7 @@ export function SynchronisationPage() {
   return (
     <PageShell
       title="Synchronisation SAP"
-      subtitle="File des opérations à rejouer vers SAP : création de commande, livraison, lecture du numéro de BL"
+      subtitle="Opérations à rejouer vers SAP"
       actions={
         <>
           <Button variant="outline" loading={ping.isFetching} onClick={() => void ping.refetch()}>
@@ -202,32 +206,15 @@ export function SynchronisationPage() {
         </>
       }
     >
-      <div className="admin-card">
-        <div className="admin-card__head">
-          <h2>État de la connexion SAP</h2>
-          <span className="text-muted" style={{ fontSize: 13 }}>
-            Dernier test : {ping.dataUpdatedAt ? formatDateTime(new Date(ping.dataUpdatedAt).toISOString()) : '—'}
-          </span>
-        </div>
-        {ping.isPending ? (
-          <p className="text-muted">Test en cours…</p>
-        ) : ping.isError ? (
-          <Notice tone="danger">{messageErreur(ping.error) || 'Test de connexion impossible'}</Notice>
-        ) : ping.data?.enLigne ? (
-          <Notice tone="success">
-            <strong>SAP joignable</strong> — SAP ECC (PRD), latence {ping.data.latenceMs} ms. Les opérations en
-            attente peuvent être synchronisées.
-          </Notice>
-        ) : (
-          <Notice tone="danger">
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              <FiWifiOff aria-hidden="true" /> <strong>SAP injoignable</strong>
-            </span>{' '}
-            — timeout 10 s. Les commandes locales et BL provisoires restent en file ; la synchronisation sera possible dès le
-            retour de SAP (basculez l'interrupteur de la barre de démonstration).
-          </Notice>
-        )}
-      </div>
+      {ping.isError ? (
+        <Notice tone="danger">{messageErreur(ping.error) || 'Test de connexion impossible'}</Notice>
+      ) : ping.data?.enLigne ? (
+        <Notice tone="success">SAP joignable — latence {ping.data.latenceMs} ms. Les opérations en attente peuvent partir.</Notice>
+      ) : ping.isPending ? (
+        <p className="text-muted">Test de connexion SAP…</p>
+      ) : (
+        <Notice tone="danger">SAP injoignable. La file est conservée ; la synchronisation reprendra au retour de SAP.</Notice>
+      )}
 
       <div className="kpi-row">
         <KpiCard title="En attente" value={compte.attente} icon={<FiClock />} tone={compte.attente > 0 ? 'warning' : 'default'} />
@@ -246,6 +233,7 @@ export function SynchronisationPage() {
 
       <div className="admin-card admin-card--flush">
         <DataTable
+          className="is-operational"
           caption="File des opérations de synchronisation SAP"
           columns={colonnes}
           rows={lignes}

@@ -22,6 +22,7 @@ const ONGLETS: { kind: ReferentielKind; label: string }[] = [
 interface Champ {
   key: string
   label: string
+  header?: string
   type?: 'text' | 'select' | 'number'
   options?: { value: string; label: string }[]
   mono?: boolean
@@ -70,7 +71,7 @@ export function ReferentielsPage() {
       { key: 'ville', label: 'Ville' },
     ],
     produits: [
-      { key: 'codeSap', label: 'Code SAP (18 chiffres)', mono: true },
+      { key: 'codeSap', label: 'Code SAP (18 chiffres)', header: 'Code SAP', mono: true },
       { key: 'libelle', label: 'Libellé' },
       {
         key: 'conditionnement',
@@ -88,7 +89,7 @@ export function ReferentielsPage() {
       { key: 'nom', label: 'Nom' },
     ],
     camions: [
-      { key: 'immatriculation', label: 'Immatriculation (12345-A-6)', mono: true },
+      { key: 'immatriculation', label: 'Immatriculation', header: 'Immatriculation', mono: true },
       { key: 'transporteurId', label: 'Transporteur', type: 'select', options: transporteursOpts },
       { key: 'tareReferenceKg', label: 'Tare de référence (kg)', type: 'number' },
     ],
@@ -110,7 +111,7 @@ export function ReferentielsPage() {
 
   const colonnes: Column<Ligne>[] = champs.map((c) => ({
     key: c.key,
-    header: c.label,
+    header: c.header ?? c.label,
     render: (l) => {
       const v = l[c.key]
       if (c.key === 'conditionnement' && (v === 'VRAC' || v === 'SAC')) return <ConditionnementBadge conditionnement={v} />
@@ -171,7 +172,7 @@ export function ReferentielsPage() {
             </button>
           ))}
         </div>
-        <div className="documents-filters" style={{ marginTop: 16, boxShadow: 'none' }} role="search">
+        <div className="documents-filters is-embedded" role="search">
           <div className="filter-field grow">
             <label className="filter-label" htmlFor="ref-recherche">
               Rechercher
@@ -188,7 +189,7 @@ export function ReferentielsPage() {
             </div>
           </div>
         </div>
-        <div style={{ marginTop: 16 }}>
+        <div className="ref-table">
           <DataTable caption={`Référentiel ${onglet}`} columns={colonnes} rows={lignes} rowKey={(l) => l.id} empty={<span className="text-muted">Aucun élément.</span>} />
         </div>
       </div>

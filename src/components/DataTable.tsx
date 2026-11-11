@@ -22,6 +22,7 @@ interface DataTableProps<T> {
   rowLabel?: (row: T) => string
   selectedKey?: string | number | null
   empty?: ReactNode
+  className?: string
   /** Premier chargement, sans lignes à conserver. */
   loading?: boolean
   /** Rafraîchissement pendant que les lignes restent affichées. */
@@ -44,6 +45,7 @@ export function DataTable<T>({
   loading = false,
   refreshing = false,
   error,
+  className,
   defaultSort,
   maxHeight,
 }: DataTableProps<T>) {
@@ -86,7 +88,7 @@ export function DataTable<T>({
 
   return (
     <div
-      className={clsx('docs-table-wrapper', enActualisation && 'is-refreshing')}
+      className={clsx('docs-table-wrapper', className, enActualisation && 'is-refreshing')}
       style={maxHeight ? { maxHeight } : undefined}
       aria-busy={enChargement || enActualisation || undefined}
     >

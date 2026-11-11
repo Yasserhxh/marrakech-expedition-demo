@@ -6,7 +6,8 @@ import { Button } from '@/components/Button'
 import { KpiCard } from '@/components/KpiCard'
 import { DataTable, type Column } from '@/components/DataTable'
 import { EmptyState } from '@/components/EmptyState'
-import { OrigineBadge, StatutBadge } from '@/components/StatusBadge'
+import { InfoValue } from '@/components/InfoValue'
+import { StatutBadge } from '@/components/StatusBadge'
 import { useAutoriserSecondPesage } from '@/features/commandes/hooks/useCommandeMutations'
 import { useReferentielLookup } from '@/features/referentiels/hooks/useReferentiels'
 import { useCamionsDansUsine } from '@/features/usine/hooks/useCamionsDansUsine'
@@ -27,83 +28,100 @@ export function UsinePage() {
   const enRetard = commandes.filter((c) => c.entreeUtc && minutesEcoulees(c.entreeUtc, now) > SEUIL_ALERTE_MIN).length
 
   const colonnes: Column<Commande>[] = [
-    { key: 'numero', header: 'N°', render: (c) => <span className="code-chip">{numeroAffiche(c)}</span>, sortValue: numeroAffiche },
-    { key: 'origine', header: 'Origine', render: (c) => <OrigineBadge origine={c.origine} /> },
+    { key: 'numero', header: 'N°', width: '7.5rem', render: (c) => <span className="code-chip">{numeroAffiche(c)}</span>, sortValue: numeroAffiche },
+    {
+      key: 'camion',
+      header: 'Camion',
+      width: '9.5rem',
+      render: (c) => (
+        <InfoValue mono meta={r.chauffeur(c.chauffeurId)?.nom}>
+          {r.camion(c.camionId)?.immatriculation ?? '—'}
+        </InfoValue>
+      ),
+      sortValue: (c) => r.camion(c.camionId)?.immatriculation ?? '',
+    },
     {
       key: 'client',
       header: 'Client',
+      width: '24%',
       render: (c) => (
-        <span className="cell-main">
+        <InfoValue meta={r.chantier(c.chantierId)?.nom}>
           {r.client(c.clientId)?.nom ?? '—'}
-          <span className="cell-sub">{r.chantier(c.chantierId)?.nom}</span>
-        </span>
+        </InfoValue>
       ),
       sortValue: (c) => r.client(c.clientId)?.nom ?? '',
     },
     {
       key: 'produit',
       header: 'Produit',
-      render: (c) => `${r.produit(c.produitId)?.libelle ?? '—'} · ${formatTonnes(c.quantiteT)}`,
-    },
-    {
-      key: 'camion',
-      header: 'Camion',
-      render: (c) => <span className="mono">{r.camion(c.camionId)?.immatriculation ?? '—'}</span>,
-      sortValue: (c) => r.camion(c.camionId)?.immatriculation ?? '',
+      width: '18%',
+      render: (c) => (
+        <InfoValue meta={formatTonnes(c.quantiteT)}>
+          {r.produit(c.produitId)?.libelle ?? '—'}
+        </InfoValue>
+      ),
     },
     {
       key: 'entree',
-      header: "Heure d'entrée",
-      render: (c) => formatHeure(c.entreeUtc),
+      header: 'Entrée',
+      width: '6.5rem',
+      render: (c) => <span className="num">{formatHeure(c.entreeUtc)}</span>,
       sortValue: (c) => c.entreeUtc ?? '',
     },
     {
-      key: 'tare',
-      header: 'Tare',
-      align: 'right',
-      render: (c) => <span className="mono">{formatKg(c.peseeEntree?.poidsKg)}</span>,
-      sortValue: (c) => c.peseeEntree?.poidsKg ?? 0,
-    },
-    {
       key: 'duree',
-      header: 'Temps passé',
+      header: 'Durée',
+      width: '8rem',
       render: (c) => {
         if (!c.entreeUtc) return '—'
         const min = minutesEcoulees(c.entreeUtc, now)
         const tard = min > SEUIL_ALERTE_MIN
         return (
           <span className={clsx('time-elapsed', tard && 'is-late')} title={tard ? 'Présence supérieure à 90 min' : undefined}>
-            {tard ? <FiAlertTriangle aria-hidden="true" /> : <FiClock aria-hidden="true" />}
-            {formatDuree(min)}
-            {tard ? <span className="badge badge--danger">&gt; 90 min</span> : null}
+            <span className="time-elapsed__value">
+              {tard ? <FiAlertTriangle aria-hidden="true" /> : <FiClock aria-hidden="true" />}
+              {formatDuree(min)}
+            </span>
+            {tard ? <span className="info-value__meta">Plus de 90 min</span> : null}
           </span>
         )
       },
       sortValue: (c) => (c.entreeUtc ? minutesEcoulees(c.entreeUtc, now) : 0),
     },
-    { key: 'statut', header: 'Statut', render: (c) => <StatutBadge statut={c.statut} /> },
+    {
+      key: 'tare',
+      header: 'Tare',
+      align: 'right',
+      width: '7rem',
+      render: (c) => <span className="num">{formatKg(c.peseeEntree?.poidsKg)}</span>,
+      sortValue: (c) => c.peseeEntree?.poidsKg ?? 0,
+    },
+    { key: 'statut', header: 'Statut', width: '9rem', render: (c) => <StatutBadge statut={c.statut} /> },
     {
       key: 'actions',
       header: 'Action',
+      width: '9.5rem',
       render: (c) =>
         c.statut === 'DansUsine' ? (
           <Button
+            variant="secondary"
             size="sm"
             loading={autoriser.isPending && autoriser.variables === c.id}
+            aria-label="Autoriser le 2ᵉ pesage"
             onClick={() => autoriser.mutate(c.id)}
           >
-            <FiLogOut aria-hidden="true" /> Autoriser le 2ᵉ pesage
+            2ᵉ pesage
           </Button>
         ) : (
-          <Link to={`/pesee/sortie/${c.id}`} className="btn-action btn-sm">
-            <FiLogOut aria-hidden="true" /> Ouvrir la pesée de sortie
+          <Link to={`/pesee/sortie/${c.id}`} className="btn-ghost btn-sm">
+            Pesée de sortie
           </Link>
         ),
     },
   ]
 
   return (
-    <PageShell title="Dans l'usine" subtitle="Camions ayant passé la pesée d'entrée, en chargement ou en attente du second pesage">
+    <PageShell title="Dans l'usine" subtitle="Camions entre la tare et le second pesage">
       <div className="kpi-row">
         <KpiCard title="Camions dans l'usine" value={commandes.length} icon={<FiHome />} />
         <KpiCard
@@ -124,6 +142,7 @@ export function UsinePage() {
 
       <div className="admin-card admin-card--flush">
         <DataTable
+          className="is-operational"
           caption="Camions dans l'usine"
           columns={colonnes}
           rows={commandes}

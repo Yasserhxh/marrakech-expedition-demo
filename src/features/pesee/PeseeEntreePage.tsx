@@ -6,16 +6,14 @@ import { Button } from '@/components/Button'
 import { WeightDisplay } from '@/components/WeightDisplay'
 import { DocumentPreview } from '@/components/DocumentPreview'
 import { EmptyState } from '@/components/EmptyState'
-import { Notice } from '@/components/Notice'
-import { StatutBadge } from '@/components/StatusBadge'
+import { CommandePeseeResume } from '@/features/pesee/CommandePeseeResume'
 import { useCommande } from '@/features/commandes/hooks/useCommandes'
 import { useAutoriserPesee, useValiderTare } from '@/features/commandes/hooks/useCommandeMutations'
 import { useReferentielLookup } from '@/features/referentiels/hooks/useReferentiels'
 import { services } from '@/services'
 import { useAppStore } from '@/store/useAppStore'
 import type { Commande } from '@/types'
-import { numeroAffiche } from '@/utils/commande'
-import { ABSENT, formatNombre, formatTonnes } from '@/utils/format'
+import { formatNombre } from '@/utils/format'
 
 const TARE_PAR_DEFAUT_KG = 16000
 
@@ -61,48 +59,11 @@ export function PeseeEntreePage() {
     )
   }
 
-  const client = r.client(commande.clientId)
-  const chantier = r.chantier(commande.chantierId)
-  const produit = r.produit(commande.produitId)
-  const chauffeur = r.chauffeur(commande.chauffeurId)
-
   const valider = () => {
     validerTare.mutate(commande.id, { onSuccess: (suivante) => setConfirmee(suivante) })
   }
 
-  const entete = (
-    <div className="admin-card">
-      <div className="admin-card__head">
-        <h2 style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-          Commande <span className="code-chip">{numeroAffiche(commande)}</span>
-        </h2>
-        <StatutBadge statut={commande.statut} />
-      </div>
-      <dl className="detail-list cols-4">
-        <div>
-          <dt>Client</dt>
-          <dd>{client?.nom ?? ABSENT}</dd>
-        </div>
-        <div>
-          <dt>Chantier</dt>
-          <dd>{chantier ? `${chantier.nom}, ${chantier.ville}` : ABSENT}</dd>
-        </div>
-        <div>
-          <dt>Produit</dt>
-          <dd>
-            {produit?.libelle ?? ABSENT} · {formatTonnes(commande.quantiteT)}
-            {commande.nombreSacs ? ` (${formatNombre(commande.nombreSacs)} sacs)` : ''}
-          </dd>
-        </div>
-        <div>
-          <dt>Camion / chauffeur</dt>
-          <dd>
-            <span className="mono">{camion?.immatriculation ?? ABSENT}</span> · {chauffeur?.nom ?? ABSENT}
-          </dd>
-        </div>
-      </dl>
-    </div>
-  )
+  const entete = <CommandePeseeResume commande={commande} />
 
   if (confirmee?.bonDeChargement) {
     return (
@@ -170,16 +131,23 @@ export function PeseeEntreePage() {
             stable={poids.stable}
             derniereLectureUtc={poids.derniereLectureUtc}
             connecte={poids.connecte}
+            enCours={poids.enCours}
           />
-          <div style={{ marginTop: 16 }}>
+          <div className="pesee-action">
             <Button size="lg" loading={validerTare.isPending} disabled={!poids.stable} onClick={valider}>
               <FiCheck aria-hidden="true" /> Valider la tare et imprimer le Bon de chargement
             </Button>
             {!poids.stable ? (
-              <p className="text-muted" style={{ fontSize: 12, marginTop: 6 }}>
-                Le bouton s'active dès que le pont renvoie 15 lectures identiques (≥ 2 000 kg).
+              <p className="text-muted pesee-action__hint">
+                {!poids.connecte
+                  ? 'Pont déconnecté : la validation est bloquée.'
+                  : !poids.enCours
+                    ? 'Aucun camion sur le pont. La validation reste bloquée.'
+                    : 'Le bouton s’active dès que le pont renvoie 15 lectures identiques (≥ 2 000 kg).'}
               </p>
-            ) : null}
+            ) : (
+              <p className="text-muted pesee-action__hint">Pesée stable : la tare peut être enregistrée.</p>
+            )}
           </div>
         </div>
 
@@ -206,7 +174,7 @@ export function PeseeEntreePage() {
               </span>
             </div>
             <div className="btn-row">
-              <button type="button" className="btn-action" onClick={() => services.pesee.simulerCamion(cible)}>
+              <button type="button" className="btn-ghost" onClick={() => services.pesee.simulerCamion(cible)}>
                 <FiTruck aria-hidden="true" /> Simuler un camion
               </button>
               <button
@@ -219,10 +187,14 @@ export function PeseeEntreePage() {
               </button>
             </div>
           </div>
-          <Notice tone="info">
-            En production, le poids provient du fichier <span className="mono">C:\Scales\{poids.pont}.txt</span> écrit par
-            Databridge (5 lectures/s). La règle de stabilité est identique à Temara.
-          </Notice>
+          <details className="tech-note">
+            <summary>Lecture Databridge</summary>
+            <p>
+              En production, le poids provient du fichier <span className="mono">C:\Scales\{poids.pont}.txt</span> écrit par
+              Databridge (5 lectures/s). La règle de stabilité est identique à Temara. Les commandes de cette colonne
+              simulent cette lecture et ne pilotent pas un pont réel.
+            </p>
+          </details>
         </div>
       </div>
     </PageShell>

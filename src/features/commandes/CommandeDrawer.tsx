@@ -6,7 +6,8 @@ import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { Notice } from '@/components/Notice'
 import { DocumentPreview } from '@/components/DocumentPreview'
-import { ConditionnementBadge, OrigineBadge, StatutBadge, SynchroBadge } from '@/components/StatusBadge'
+import { InfoValue } from '@/components/InfoValue'
+import { ConditionnementBadge, StatutBadge, SynchroBadge } from '@/components/StatusBadge'
 import { useCommande } from '@/features/commandes/hooks/useCommandes'
 import {
   useAnnulerCommande,
@@ -46,47 +47,39 @@ export function CommandeDrawer({ commandeId, onClose }: CommandeDrawerProps) {
 
   const actions = (
     <>
+      {annulable ? (
+        <Button variant="danger" className="drawer-action--aside" onClick={() => setConfirmerAnnulation(true)}>
+          <FiXCircle aria-hidden="true" /> Annuler la commande
+        </Button>
+      ) : null}
+      {commande.bonDeChargement ? (
+        <Button variant="outline" onClick={() => setApercu('BC')}>
+          <FiPrinter aria-hidden="true" /> Bon de chargement
+        </Button>
+      ) : null}
+      {commande.bonDeLivraison ? (
+        <Button variant="outline" onClick={() => setApercu('BL')}>
+          <FiPrinter aria-hidden="true" /> Bon de livraison
+        </Button>
+      ) : null}
       {commande.statut === 'Creee' ? (
-        <Button
-          block
-          loading={autoriserEntree.isPending}
-          onClick={() => autoriserEntree.mutate(commande.id)}
-        >
+        <Button loading={autoriserEntree.isPending} onClick={() => autoriserEntree.mutate(commande.id)}>
           <FiLogIn aria-hidden="true" /> Autoriser la pesée d'entrée
         </Button>
       ) : null}
       {commande.statut === 'EntreeAutorisee' ? (
-        <Button variant="secondary" block onClick={() => navigate(`/pesee/entree/${commande.id}`)}>
-          <FiLogIn aria-hidden="true" /> Ouvrir la pesée d'entrée (tare)
+        <Button variant="secondary" onClick={() => navigate(`/pesee/entree/${commande.id}`)}>
+          <FiLogIn aria-hidden="true" /> Pesée d'entrée
         </Button>
       ) : null}
       {commande.statut === 'DansUsine' ? (
-        <Button
-          block
-          loading={autoriserSortie.isPending}
-          onClick={() => autoriserSortie.mutate(commande.id)}
-        >
+        <Button loading={autoriserSortie.isPending} onClick={() => autoriserSortie.mutate(commande.id)}>
           <FiLogOut aria-hidden="true" /> Autoriser le 2ᵉ pesage
         </Button>
       ) : null}
       {commande.statut === 'SortieAutorisee' ? (
-        <Button variant="secondary" block onClick={() => navigate(`/pesee/sortie/${commande.id}`)}>
-          <FiLogOut aria-hidden="true" /> Ouvrir la pesée de sortie (brut)
-        </Button>
-      ) : null}
-      {commande.bonDeLivraison ? (
-        <Button variant="teal" block onClick={() => setApercu('BL')}>
-          <FiPrinter aria-hidden="true" /> Réimprimer le Bon de livraison
-        </Button>
-      ) : null}
-      {commande.bonDeChargement ? (
-        <Button variant="outline" block onClick={() => setApercu('BC')}>
-          <FiPrinter aria-hidden="true" /> Réimprimer le Bon de chargement
-        </Button>
-      ) : null}
-      {annulable ? (
-        <Button variant="danger" block onClick={() => setConfirmerAnnulation(true)}>
-          <FiXCircle aria-hidden="true" /> Annuler la commande
+        <Button variant="secondary" onClick={() => navigate(`/pesee/sortie/${commande.id}`)}>
+          <FiLogOut aria-hidden="true" /> Pesée de sortie
         </Button>
       ) : null}
     </>
@@ -98,16 +91,13 @@ export function CommandeDrawer({ commandeId, onClose }: CommandeDrawerProps) {
         open
         onClose={onClose}
         title={
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-            Commande <span className="code-chip">{numeroAffiche(commande)}</span>
-          </span>
-        }
-        subtitle={
-          <span className="drawer-badges">
-            <OrigineBadge origine={commande.origine} />
+          <span className="drawer-title">
+            <span>Commande</span>
+            <span className="code-chip">{numeroAffiche(commande)}</span>
             <StatutBadge statut={commande.statut} />
           </span>
         }
+        subtitle={commande.origine === 'Locale' ? 'Origine locale' : 'Origine SAP'}
         footer={actions}
       >
         {commande.statut === 'ErreurSynchro' ? (
@@ -122,20 +112,20 @@ export function CommandeDrawer({ commandeId, onClose }: CommandeDrawerProps) {
         ) : null}
 
         <section className="drawer-section">
-          <h3>Client et chantier</h3>
+          <h3>Client et livraison</h3>
           <dl className="detail-list">
             <div>
               <dt>Client</dt>
               <dd>
-                {client?.nom ?? ABSENT}
-                <span className="cell-sub mono">{client?.code}</span>
+                <InfoValue meta={client ? `SAP ${client.code}` : undefined} metaMono>
+                  {client?.nom ?? ABSENT}
+                </InfoValue>
               </dd>
             </div>
             <div>
               <dt>Chantier</dt>
               <dd>
-                {chantier?.nom ?? ABSENT}
-                <span className="cell-sub">{chantier?.ville}</span>
+                <InfoValue meta={chantier?.ville}>{chantier?.nom ?? ABSENT}</InfoValue>
               </dd>
             </div>
             <div>
@@ -144,7 +134,7 @@ export function CommandeDrawer({ commandeId, onClose }: CommandeDrawerProps) {
             </div>
             <div>
               <dt>Créée le</dt>
-              <dd>{formatDateTime(commande.creeeLeUtc)}</dd>
+              <dd className="num">{formatDateTime(commande.creeeLeUtc)}</dd>
             </div>
           </dl>
         </section>
@@ -155,16 +145,21 @@ export function CommandeDrawer({ commandeId, onClose }: CommandeDrawerProps) {
             <div>
               <dt>Produit</dt>
               <dd>
-                {produit?.libelle ?? ABSENT}{' '}
-                {produit ? <ConditionnementBadge conditionnement={produit.conditionnement} /> : null}
-                <span className="cell-sub mono">{produit?.codeSap}</span>
+                <InfoValue meta={produit?.codeSap} metaMono>
+                  {produit?.libelle ?? ABSENT}
+                </InfoValue>
               </dd>
+            </div>
+            <div>
+              <dt>Conditionnement</dt>
+              <dd>{produit ? <ConditionnementBadge conditionnement={produit.conditionnement} /> : ABSENT}</dd>
             </div>
             <div>
               <dt>Quantité</dt>
               <dd>
-                {formatTonnes(commande.quantiteT)}
-                {commande.nombreSacs ? <span className="cell-sub">{formatNombre(commande.nombreSacs)} sacs</span> : null}
+                <InfoValue meta={commande.nombreSacs ? `${formatNombre(commande.nombreSacs)} sacs` : undefined}>
+                  {formatTonnes(commande.quantiteT)}
+                </InfoValue>
               </dd>
             </div>
           </dl>
@@ -179,13 +174,16 @@ export function CommandeDrawer({ commandeId, onClose }: CommandeDrawerProps) {
             </div>
             <div>
               <dt>Camion</dt>
-              <dd className="mono">{camion?.immatriculation ?? ABSENT}</dd>
+              <dd>
+                <InfoValue mono>{camion?.immatriculation ?? ABSENT}</InfoValue>
+              </dd>
             </div>
             <div className="detail-item span-2">
               <dt>Chauffeur</dt>
               <dd>
-                {chauffeur?.nom ?? ABSENT}
-                <span className="cell-sub mono">CIN {chauffeur?.cin}</span>
+                <InfoValue meta={chauffeur ? `CIN ${chauffeur.cin}` : undefined} metaMono>
+                  {chauffeur?.nom ?? ABSENT}
+                </InfoValue>
               </dd>
             </div>
           </dl>
@@ -195,49 +193,56 @@ export function CommandeDrawer({ commandeId, onClose }: CommandeDrawerProps) {
           <h3>Pesées et documents</h3>
           <dl className="detail-list">
             <div>
-              <dt>N° SAP</dt>
-              <dd className="mono">{commande.numeroSap ?? ABSENT}</dd>
-            </div>
-            <div>
-              <dt>Synchronisation</dt>
-              <dd>
-                <SynchroBadge synchro={commande.synchro} sapNatif={commande.origine === 'Sap'} />
-              </dd>
-            </div>
-            <div>
               <dt>Entrée (tare)</dt>
               <dd>
-                {formatKg(commande.peseeEntree?.poidsKg)}
-                <span className="cell-sub">
-                  {commande.peseeEntree ? `${commande.peseeEntree.pont} · ${formatDateTime(commande.entreeUtc)}` : ''}
-                </span>
+                <InfoValue
+                  meta={
+                    commande.peseeEntree
+                      ? `${commande.peseeEntree.pont} · ${formatDateTime(commande.entreeUtc)}`
+                      : undefined
+                  }
+                >
+                  {formatKg(commande.peseeEntree?.poidsKg)}
+                </InfoValue>
               </dd>
             </div>
             <div>
               <dt>Sortie (brut)</dt>
               <dd>
-                {formatKg(commande.peseeSortie?.poidsKg)}
-                <span className="cell-sub">
-                  {commande.peseeSortie ? `${commande.peseeSortie.pont} · ${formatDateTime(commande.sortieUtc)}` : ''}
-                </span>
+                <InfoValue
+                  meta={
+                    commande.peseeSortie
+                      ? `${commande.peseeSortie.pont} · ${formatDateTime(commande.sortieUtc)}`
+                      : undefined
+                  }
+                >
+                  {formatKg(commande.peseeSortie?.poidsKg)}
+                </InfoValue>
               </dd>
             </div>
             <div>
               <dt>Net</dt>
-              <dd>{formatKg(commande.bonDeLivraison?.netKg)}</dd>
+              <dd className="num">{formatKg(commande.bonDeLivraison?.netKg)}</dd>
             </div>
             <div>
               <dt>Bon de chargement</dt>
-              <dd className="mono">{commande.bonDeChargement?.numero ?? ABSENT}</dd>
+              <dd>
+                <InfoValue mono>{commande.bonDeChargement?.numero ?? ABSENT}</InfoValue>
+              </dd>
             </div>
             <div className="detail-item span-2">
               <dt>Bon de livraison</dt>
-              <dd className="mono">
-                {commande.bonDeLivraison
-                  ? commande.bonDeLivraison.numeroSap
-                    ? `${commande.bonDeLivraison.numeroSap} (SAP)`
-                    : `${commande.bonDeLivraison.numeroProvisoire} (provisoire)`
-                  : ABSENT}
+              <dd>
+                {commande.bonDeLivraison ? (
+                  <InfoValue
+                    mono
+                    meta={commande.bonDeLivraison.numeroSap ? 'Numéro SAP' : 'Provisoire'}
+                  >
+                    {commande.bonDeLivraison.numeroSap ?? commande.bonDeLivraison.numeroProvisoire}
+                  </InfoValue>
+                ) : (
+                  ABSENT
+                )}
               </dd>
             </div>
             {commande.commentaire ? (
@@ -246,6 +251,24 @@ export function CommandeDrawer({ commandeId, onClose }: CommandeDrawerProps) {
                 <dd>{commande.commentaire}</dd>
               </div>
             ) : null}
+          </dl>
+        </section>
+
+        <section className="drawer-section">
+          <h3>Synchronisation</h3>
+          <dl className="detail-list">
+            <div>
+              <dt>N° SAP</dt>
+              <dd>
+                <InfoValue mono>{commande.numeroSap ?? ABSENT}</InfoValue>
+              </dd>
+            </div>
+            <div>
+              <dt>État</dt>
+              <dd>
+                <SynchroBadge synchro={commande.synchro} sapNatif={commande.origine === 'Sap'} />
+              </dd>
+            </div>
           </dl>
         </section>
 

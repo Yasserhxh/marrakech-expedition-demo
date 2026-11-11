@@ -421,10 +421,12 @@
 }
 
 .admin-page__subtitle {
-  font-size: 0.95rem;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.45;
   color: var(--cimar-muted);
-  margin-top: 0.35rem;
-  max-width: 46rem;
+  margin-top: 4px;
+  max-width: 40rem;
 }
 
 .admin-page__status {
@@ -572,15 +574,15 @@
 }
 
 .commandes-kpis .kpi-card {
-  min-height: 76px;
+  min-height: 0;
   align-items: flex-start;
 }
 
 .kpi-card {
   background: var(--cimar-card);
   border-radius: var(--radius-card);
-  padding: 0.9rem 1.1rem 1rem;
-  box-shadow: var(--shadow-kpi);
+  padding: 10px 12px;
+  box-shadow: none;
   border: 1px solid var(--cimar-border);
   display: flex;
   align-items: center;
@@ -642,15 +644,16 @@
 }
 
 .kpi-title {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-  color: var(--cimar-kpi-title);
-  margin-bottom: 0.2rem;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--cimar-muted);
+  margin-bottom: 2px;
 }
 
 .kpi-value {
-  font-size: 1.35rem;
+  font-size: 1.25rem;
   font-weight: 600;
   color: var(--cimar-ink);
   line-height: 1.1;
@@ -890,6 +893,15 @@
   border: 1px solid var(--cimar-border);
   border-radius: var(--radius-panel);
   box-shadow: var(--shadow-panel);
+
+  &.is-embedded {
+    margin-top: 12px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
 }
 
 .filter-field {
@@ -906,8 +918,8 @@
 
 .filter-label,
 .form-label {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 500;
   color: var(--cimar-label);
 }
 
@@ -1103,12 +1115,15 @@
 .docs-table-wrapper {
   width: 100%;
   max-width: 100%;
-  overflow: auto;
-  max-height: calc(100vh - 140px);
+  overflow-x: auto;
   border-radius: var(--radius-panel);
 
   &.is-refreshing {
     box-shadow: inset 0 2px 0 var(--cimar-action);
+  }
+
+  &.is-operational .docs-table {
+    min-width: 1080px;
   }
 }
 
@@ -1225,10 +1240,47 @@
 
   .cell-sub {
     display: block;
+    margin-top: 2px;
     font-size: 12px;
-    color: var(--cimar-muted-2);
+    line-height: 1.35;
+    color: var(--cimar-muted);
     font-weight: 400;
   }
+}
+
+.info-value {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.cell-right .info-value {
+  align-items: flex-end;
+}
+
+.info-value__kicker,
+.info-value__meta {
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.35;
+  color: var(--cimar-muted);
+}
+
+.info-value__primary {
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--cimar-text);
+  overflow-wrap: anywhere;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
 }
 
 .code-chip {
@@ -1434,7 +1486,7 @@
   top: 0;
   right: 0;
   height: 100vh;
-  width: min(100%, 520px);
+  width: min(100%, 560px);
   background: var(--cimar-card);
   box-shadow: var(--shadow-modal);
   z-index: 1600;
@@ -1459,9 +1511,18 @@
   }
 }
 
+.drawer-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
 .drawer__subtitle {
   margin-top: 4px;
   color: var(--cimar-muted);
+  font-size: 12px;
+  font-weight: 400;
 }
 
 .drawer-badges {
@@ -1471,12 +1532,12 @@
 }
 
 .drawer-section h3 {
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  color: var(--cimar-muted);
-  margin-bottom: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--cimar-ink);
+  margin-bottom: 10px;
 }
 
 .choice {
@@ -1510,12 +1571,19 @@
 }
 
 .drawer__foot {
-  padding: 14px 24px;
+  padding: 12px 20px;
   border-top: 1px solid var(--cimar-border);
   display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  background: var(--cimar-fill-soft);
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  background: var(--cimar-card);
+}
+
+.drawer-action--aside {
+  margin-right: auto;
 }
 
 @keyframes fade-in {
@@ -1554,18 +1622,19 @@
   }
 
   dt {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--cimar-muted-2);
-    font-weight: 600;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--cimar-muted);
   }
 
   dd {
     margin: 2px 0 0;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--cimar-text);
     font-size: 14px;
+    line-height: 1.35;
     overflow-wrap: anywhere;
   }
 }
@@ -1757,10 +1826,66 @@
 }
 
 /* ========== Pont bascule ========== */
+.pesee-order__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.pesee-action {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 16px;
+}
+
+.pesee-action__hint {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.tech-note {
+  border: 1px solid var(--cimar-border);
+  border-radius: var(--radius-control);
+  background: var(--cimar-fill-soft);
+  padding: 8px 12px;
+  color: var(--cimar-muted);
+  font-size: 12px;
+  line-height: 1.45;
+
+  summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--cimar-label);
+  }
+
+  p {
+    margin-top: 8px;
+  }
+}
+
+.monitor-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  h2 {
+    font-size: 15px;
+    font-weight: 600;
+  }
+}
+
+.ref-table {
+  margin-top: 12px;
+}
+
 .weighbridge {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
 }
 
 .weighbridge__toolbar {
@@ -2196,10 +2321,11 @@
 
 /* ========== Étapes de synchro ========== */
 .sync-steps {
-  display: inline-flex;
+  display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 4px;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .sync-step {
@@ -2420,6 +2546,25 @@
     }
   }
 
+  &.is-incident {
+    box-shadow: none;
+  }
+
+  &.is-down {
+    border-color: var(--cimar-danger);
+    background: var(--cimar-danger-soft);
+  }
+
+  &.is-degraded {
+    border-color: var(--cimar-warning);
+    background: var(--cimar-warning-soft);
+  }
+
+  &.is-quiet {
+    box-shadow: none;
+    background: var(--cimar-fill-soft);
+  }
+
   .health-card__name {
     font-weight: 700;
     color: var(--cimar-ink);
@@ -2465,11 +2610,19 @@
 }
 
 .time-elapsed {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-weight: 600;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
   font-variant-numeric: tabular-nums;
+
+  .time-elapsed__value {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+    font-size: 14px;
+  }
 
   &.is-late {
     color: var(--cimar-danger);

@@ -16,7 +16,7 @@ export function MonitoringPage() {
 
   if (!snapshot) {
     return (
-      <PageShell title="Monitoring" subtitle="Santé de l'API Marrakech, dépendances et erreurs récentes (données simulées)">
+      <PageShell title="Monitoring" subtitle="Télémétrie simulée">
         {isError ? (
           <Notice tone="danger">{messageErreur(error)}</Notice>
         ) : (
@@ -33,6 +33,9 @@ export function MonitoringPage() {
     const q = recherche.trim().toLowerCase()
     return !q || `${e.correlationId} ${e.route} ${e.message}`.toLowerCase().includes(q)
   })
+  const incidents = snapshot.sante.filter((s) => s.etat !== 'ok')
+  const servicesSains = snapshot.sante.filter((s) => s.etat === 'ok')
+  const libelleEtat = (etat: string) => (etat === 'ok' ? 'OK' : etat === 'degrade' ? 'Dégradé' : 'Indisponible')
 
   const colonnes: Column<MonitoringErreur>[] = [
     { key: 'heure', header: 'Heure', render: (e) => formatHeure(e.horodatageUtc, true), sortValue: (e) => e.horodatageUtc },
@@ -57,20 +60,42 @@ export function MonitoringPage() {
   ]
 
   return (
-    <PageShell title="Monitoring" subtitle="Santé de l'API Marrakech, dépendances et erreurs récentes (données simulées)">
-      <div className="health-grid">
-        {snapshot.sante.map((s) => (
-          <div key={s.nom} className="health-card">
-            <span className={clsx('health-card__dot', s.etat === 'degrade' && 'is-degraded', s.etat === 'ko' && 'is-down')} aria-hidden="true" />
-            <div>
-              <div className="health-card__name">
-                {s.nom} — {s.etat === 'ok' ? 'OK' : s.etat === 'degrade' ? 'Dégradé' : 'KO'}
+    <PageShell title="Monitoring" subtitle="Télémétrie simulée — incidents en premier, puis services sains">
+      {incidents.length > 0 ? (
+        <section className="monitor-block">
+          <h2>Incidents</h2>
+          <div className="health-grid">
+            {incidents.map((s) => (
+              <div key={s.nom} className={clsx('health-card is-incident', s.etat === 'degrade' && 'is-degraded', s.etat === 'ko' && 'is-down')}>
+                <span className={clsx('health-card__dot', s.etat === 'degrade' && 'is-degraded', s.etat === 'ko' && 'is-down')} aria-hidden="true" />
+                <div>
+                  <div className="health-card__name">
+                    {s.nom} — {libelleEtat(s.etat)}
+                  </div>
+                  <div className="health-card__detail">{s.detail}</div>
+                </div>
               </div>
-              <div className="health-card__detail">{s.detail}</div>
-            </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </section>
+      ) : (
+        <Notice tone="success">Aucun incident simulé. Les services suivis répondent.</Notice>
+      )}
+
+      <section className="monitor-block">
+        <h2>Services sains</h2>
+        <div className="health-grid">
+          {servicesSains.map((s) => (
+            <div key={s.nom} className="health-card is-quiet">
+              <span className="health-card__dot" aria-hidden="true" />
+              <div>
+                <div className="health-card__name">{s.nom} — OK</div>
+                <div className="health-card__detail">{s.detail}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
 
       <div className="kpi-row">
         <KpiCard

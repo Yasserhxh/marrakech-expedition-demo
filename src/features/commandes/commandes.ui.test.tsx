@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { queryClient } from '@/app/queryClient'
 import { CommandesPage } from '@/features/commandes/CommandesPage'
@@ -69,6 +69,27 @@ describe('commandes du jour', () => {
     await queryClient.invalidateQueries()
     await waitFor(() => expect(screen.getByText('12 commandes')).toBeInTheDocument())
     expect(screen.getByText(/EL OUAFI/i)).toBeInTheDocument()
+  })
+
+  it('sépare le nom, le chantier et le chauffeur de leurs identifiants', () => {
+    renderApp(<CommandesPage />)
+    const ligne = screen.getAllByRole('row').find((tr) => {
+      const texte = tr.textContent ?? ''
+      return texte.includes('SOCIÉTÉ ATLAS BÉTON') && texte.includes('Sidi Ghanem')
+    })
+    expect(ligne).toBeTruthy()
+    fireEvent.click(ligne as HTMLElement)
+    const dialog = screen.getByRole('dialog', { name: /Commande/ })
+    const client = within(dialog).getByText('SOCIÉTÉ ATLAS BÉTON')
+    expect(client).toHaveClass('info-value__primary')
+    expect(client.textContent).not.toContain('0010045812')
+    expect(within(dialog).getByText('SAP 0010045812')).toHaveClass('info-value__meta')
+    const chantier = within(dialog).getByText('Centrale à béton Sidi Ghanem')
+    expect(chantier.textContent).not.toContain('Marrakech')
+    expect(chantier.parentElement?.querySelector('.info-value__meta')).toHaveTextContent('Marrakech')
+    const chauffeur = within(dialog).getByText('Mohamed AIT BRAHIM')
+    expect(chauffeur.textContent).not.toContain('EE412367')
+    expect(chauffeur.parentElement?.querySelector('.info-value__meta')).toHaveTextContent('CIN EE412367')
   })
 })
 

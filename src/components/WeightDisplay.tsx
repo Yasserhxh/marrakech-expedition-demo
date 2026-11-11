@@ -12,6 +12,7 @@ interface WeightDisplayProps {
   stable: boolean
   derniereLectureUtc: string | null
   connecte: boolean
+  enCours?: boolean
 }
 
 export function WeightDisplay({
@@ -22,7 +23,27 @@ export function WeightDisplay({
   stable,
   derniereLectureUtc,
   connecte,
+  enCours = false,
 }: WeightDisplayProps) {
+  const presence =
+    !connecte
+      ? 'Pont déconnecté'
+      : !enCours && lectureKg === 0
+        ? 'Aucun camion'
+        : stable
+          ? 'Stable'
+          : lectureKg > 0
+            ? 'Stabilisation en cours'
+            : 'Camion détecté'
+  const exploitable = connecte && stable && lectureKg > 0
+  const instable = connecte && enCours && !stable && lectureKg > 0
+  const consigne = !connecte
+    ? 'Connexion interrompue — la pesée ne peut pas être validée'
+    : !enCours && lectureKg === 0
+      ? 'Aucun camion sur le pont'
+      : stable
+        ? 'Stable — pesée exploitable'
+        : 'Instable — en attente de 15 lectures identiques'
   return (
     <div className="weighbridge">
       <div className="weighbridge__toolbar">
@@ -54,18 +75,18 @@ export function WeightDisplay({
 
       <div className="weighbridge-display" aria-live="polite" aria-atomic="true">
         <span className="weighbridge-display__label">{label}</span>
-        <span className={clsx('weighbridge-display__value', stable ? 'is-stable' : 'is-unstable')}>
+        <span className={clsx('weighbridge-display__value', instable && 'is-unstable')}>
           {formatNombre(lectureKg)}
           <small>kg</small>
         </span>
         <span className="weighbridge-display__meta">
-          {pont} · {stable ? 'STABLE' : lectureKg > 0 ? 'EN COURS DE STABILISATION' : 'PONT VIDE'}
+          {pont} · {presence}
         </span>
       </div>
 
-      <div className={clsx('stable-banner', stable ? 'is-stable' : 'is-unstable')} role="status">
-        {stable ? <FiCheckCircle aria-hidden="true" /> : <FiActivity aria-hidden="true" />}
-        {stable ? 'Stable — pesée exploitable' : 'Instable — en attente de 15 lectures identiques'}
+      <div className={clsx('stable-banner', exploitable ? 'is-stable' : 'is-unstable')} role="status">
+        {exploitable ? <FiCheckCircle aria-hidden="true" /> : <FiActivity aria-hidden="true" />}
+        {consigne}
       </div>
     </div>
   )

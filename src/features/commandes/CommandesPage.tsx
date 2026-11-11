@@ -8,6 +8,7 @@ import { KpiCard } from '@/components/KpiCard'
 import { DataTable, type Column } from '@/components/DataTable'
 import { EmptyState } from '@/components/EmptyState'
 import { Notice } from '@/components/Notice'
+import { InfoValue } from '@/components/InfoValue'
 import { OrigineBadge, StatutBadge, SynchroBadge } from '@/components/StatusBadge'
 import { useCommandes } from '@/features/commandes/hooks/useCommandes'
 import { useReferentielLookup } from '@/features/referentiels/hooks/useReferentiels'
@@ -90,65 +91,63 @@ export function CommandesPage() {
     {
       key: 'numero',
       header: 'N°',
+      width: '7.5rem',
       render: (c) => <span className="code-chip">{numeroAffiche(c)}</span>,
       sortValue: (c) => numeroAffiche(c),
     },
-    { key: 'origine', header: 'Origine', render: (c) => <OrigineBadge origine={c.origine} />, sortValue: (c) => c.origine },
+    { key: 'origine', header: 'Origine', width: '6.5rem', render: (c) => <OrigineBadge origine={c.origine} />, sortValue: (c) => c.origine },
     {
       key: 'client',
       header: 'Client',
-      render: (c) => <span className="cell-main">{r.client(c.clientId)?.nom ?? '—'}</span>,
+      width: '18%',
+      render: (c) => <InfoValue>{r.client(c.clientId)?.nom ?? '—'}</InfoValue>,
       sortValue: (c) => r.client(c.clientId)?.nom ?? '',
     },
     {
       key: 'chantier',
       header: 'Chantier',
+      width: '16%',
       render: (c) => {
         const ch = r.chantier(c.chantierId)
-        return ch ? (
-          <span>
-            {ch.nom}
-            <span className="cell-sub">{ch.ville}</span>
-          </span>
-        ) : (
-          '—'
-        )
+        return ch ? <InfoValue meta={ch.ville}>{ch.nom}</InfoValue> : '—'
       },
       sortValue: (c) => r.chantier(c.chantierId)?.nom ?? '',
     },
     {
       key: 'produit',
       header: 'Produit',
-      render: (c) => r.produit(c.produitId)?.libelle ?? '—',
+      width: '14%',
+      render: (c) => <InfoValue>{r.produit(c.produitId)?.libelle ?? '—'}</InfoValue>,
       sortValue: (c) => r.produit(c.produitId)?.libelle ?? '',
     },
     {
       key: 'quantite',
       header: 'Quantité',
       align: 'right',
+      width: '7rem',
       render: (c) => (
-        <span>
-          <span className="mono">{formatTonnes(c.quantiteT)}</span>
-          <span className="cell-sub">{INCOTERM_LABELS[c.incoterm]}</span>
-        </span>
+        <InfoValue meta={INCOTERM_LABELS[c.incoterm]}>
+          <span className="num">{formatTonnes(c.quantiteT)}</span>
+        </InfoValue>
       ),
       sortValue: (c) => c.quantiteT,
     },
     {
       key: 'camion',
       header: 'Camion',
+      width: '9.5rem',
       render: (c) => (
-        <span>
-          <span className="mono">{r.camion(c.camionId)?.immatriculation ?? '—'}</span>
-          <span className="cell-sub">{r.chauffeur(c.chauffeurId)?.nom ?? '—'}</span>
-        </span>
+        <InfoValue mono meta={r.chauffeur(c.chauffeurId)?.nom}>
+          {r.camion(c.camionId)?.immatriculation ?? '—'}
+        </InfoValue>
       ),
       sortValue: (c) => r.camion(c.camionId)?.immatriculation ?? '',
     },
-    { key: 'statut', header: 'Statut', render: (c) => <StatutBadge statut={c.statut} />, sortValue: (c) => STATUT_LABELS[c.statut] },
+    { key: 'statut', header: 'Statut', width: '9rem', render: (c) => <StatutBadge statut={c.statut} />, sortValue: (c) => STATUT_LABELS[c.statut] },
     {
       key: 'synchro',
       header: 'Synchro',
+      width: '8.5rem',
       render: (c) => <SynchroBadge synchro={c.synchro} sapNatif={c.origine === 'Sap'} />,
       sortValue: (c) => c.synchro,
     },
@@ -166,12 +165,12 @@ export function CommandesPage() {
   const boutonNouvelle = sapOnline ? (
     <span title="SAP est en ligne : créez la commande dans SAP, elle arrivera automatiquement ici.">
       <Button disabled aria-describedby="aide-nouvelle">
-        <FiPlus aria-hidden="true" /> Nouvelle commande (SAP indisponible)
+        <FiPlus aria-hidden="true" /> Nouvelle commande
       </Button>
     </span>
   ) : (
-    <Link to="/commandes/nouvelle" className="btn-primary">
-      <FiPlus aria-hidden="true" /> Nouvelle commande (SAP indisponible)
+    <Link to="/commandes/nouvelle" className="btn-primary" aria-describedby="aide-nouvelle">
+      <FiPlus aria-hidden="true" /> Nouvelle commande
     </Link>
   )
 
@@ -180,14 +179,11 @@ export function CommandesPage() {
       layout="operations"
       title="Commandes du jour"
       subtitle={
-        <>
-          Usine M102 Marrakech ·{' '}
-          <span id="aide-nouvelle">
-            {sapOnline
-              ? 'Les commandes arrivent de SAP ; la création locale est réservée aux coupures SAP.'
-              : 'SAP indisponible : créez des commandes locales, elles seront synchronisées au retour de SAP.'}
-          </span>
-        </>
+        <span id="aide-nouvelle">
+          {sapOnline
+            ? 'Création locale réservée aux coupures SAP.'
+            : 'SAP indisponible : les commandes locales seront synchronisées au retour.'}
+        </span>
       }
       actions={boutonNouvelle}
     >
@@ -302,6 +298,7 @@ export function CommandesPage() {
 
       <div className="admin-card admin-card--flush">
         <DataTable
+          className="is-operational"
           caption="Commandes du jour"
           columns={colonnes}
           rows={lignes}
@@ -325,7 +322,7 @@ export function CommandesPage() {
                 action={
                   !sapOnline ? (
                     <Link to="/commandes/nouvelle" className="btn-primary btn-sm">
-                      <FiPlus aria-hidden="true" /> Nouvelle commande (SAP indisponible)
+                      <FiPlus aria-hidden="true" /> Nouvelle commande
                     </Link>
                   ) : undefined
                 }
