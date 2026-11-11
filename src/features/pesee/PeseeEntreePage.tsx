@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { FiArrowRight, FiCheck, FiSliders, FiTruck, FiXCircle } from 'react-icons/fi'
 import { PageShell } from '@/components/PageShell'
+import { Button } from '@/components/Button'
 import { WeightDisplay } from '@/components/WeightDisplay'
 import { DocumentPreview } from '@/components/DocumentPreview'
 import { EmptyState } from '@/components/EmptyState'
@@ -110,11 +111,11 @@ export function PeseeEntreePage() {
         <div className="admin-card">
           <DocumentPreview type="BC" commande={confirmee} />
         </div>
-        <div className="btn-row" style={{ justifyContent: 'center' }}>
-          <Link to="/usine" className="btn-primary btn-lg">
+        <div className="btn-row">
+          <Link to="/usine" className="btn-primary">
             Terminer — voir « Dans l'usine » <FiArrowRight aria-hidden="true" />
           </Link>
-          <Link to="/commandes" className="btn-ghost btn-lg">
+          <Link to="/commandes" className="btn-ghost">
             Retour aux commandes
           </Link>
         </div>
@@ -141,14 +142,9 @@ export function PeseeEntreePage() {
             }
             action={
               commande.statut === 'Creee' ? (
-                <button
-                  type="button"
-                  className="btn-primary"
-                  disabled={autoriser.isPending}
-                  onClick={() => autoriser.mutate(commande.id)}
-                >
+                <Button loading={autoriser.isPending} onClick={() => autoriser.mutate(commande.id)}>
                   <FiCheck aria-hidden="true" /> Autoriser la pesée (guichet)
-                </button>
+                </Button>
               ) : (
                 <button type="button" className="btn-ghost" onClick={() => navigate('/commandes')}>
                   Retour aux commandes
@@ -176,11 +172,11 @@ export function PeseeEntreePage() {
             connecte={poids.connecte}
           />
           <div style={{ marginTop: 16 }}>
-            <button type="button" className="btn-primary btn-lg btn-block" disabled={!poids.stable || validerTare.isPending} onClick={valider}>
+            <Button size="lg" loading={validerTare.isPending} disabled={!poids.stable} onClick={valider}>
               <FiCheck aria-hidden="true" /> Valider la tare et imprimer le Bon de chargement
-            </button>
+            </Button>
             {!poids.stable ? (
-              <p className="text-muted" style={{ fontSize: 12, marginTop: 6, textAlign: 'center' }}>
+              <p className="text-muted" style={{ fontSize: 12, marginTop: 6 }}>
                 Le bouton s'active dès que le pont renvoie 15 lectures identiques (≥ 2 000 kg).
               </p>
             ) : null}

@@ -2,6 +2,7 @@ import clsx from 'clsx'
 import { Link } from 'react-router-dom'
 import { FiAlertTriangle, FiClock, FiHome, FiLogOut } from 'react-icons/fi'
 import { PageShell } from '@/components/PageShell'
+import { Button } from '@/components/Button'
 import { KpiCard } from '@/components/KpiCard'
 import { DataTable, type Column } from '@/components/DataTable'
 import { EmptyState } from '@/components/EmptyState'
@@ -11,6 +12,7 @@ import { useReferentielLookup } from '@/features/referentiels/hooks/useReferenti
 import { useCamionsDansUsine } from '@/features/usine/hooks/useCamionsDansUsine'
 import type { Commande } from '@/types'
 import { numeroAffiche } from '@/utils/commande'
+import { messageErreur } from '@/utils/erreurs'
 import { formatDuree, formatHeure, formatKg, formatTonnes, minutesEcoulees } from '@/utils/format'
 import { useNow } from '@/utils/useNow'
 
@@ -19,7 +21,7 @@ const SEUIL_ALERTE_MIN = 90
 export function UsinePage() {
   const now = useNow(30000)
   const r = useReferentielLookup()
-  const { data: commandes = [] } = useCamionsDansUsine()
+  const { data: commandes = [], isPending, isFetching, isError, error } = useCamionsDansUsine()
   const autoriser = useAutoriserSecondPesage()
 
   const enRetard = commandes.filter((c) => c.entreeUtc && minutesEcoulees(c.entreeUtc, now) > SEUIL_ALERTE_MIN).length
@@ -85,14 +87,13 @@ export function UsinePage() {
       header: 'Action',
       render: (c) =>
         c.statut === 'DansUsine' ? (
-          <button
-            type="button"
-            className="btn-primary btn-sm"
-            disabled={autoriser.isPending && autoriser.variables === c.id}
+          <Button
+            size="sm"
+            loading={autoriser.isPending && autoriser.variables === c.id}
             onClick={() => autoriser.mutate(c.id)}
           >
             <FiLogOut aria-hidden="true" /> Autoriser le 2ᵉ pesage
-          </button>
+          </Button>
         ) : (
           <Link to={`/pesee/sortie/${c.id}`} className="btn-action btn-sm">
             <FiLogOut aria-hidden="true" /> Ouvrir la pesée de sortie
@@ -128,6 +129,9 @@ export function UsinePage() {
           rows={commandes}
           rowKey={(c) => c.id}
           defaultSort={{ key: 'entree', direction: 'asc' }}
+          loading={isPending && commandes.length === 0}
+          refreshing={isFetching && commandes.length > 0}
+          error={isError ? messageErreur(error) : undefined}
           empty={
             <EmptyState
               icon={<FiHome />}

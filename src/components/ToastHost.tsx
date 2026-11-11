@@ -14,12 +14,16 @@ export function ToastHost() {
   const toasts = useAppStore((s) => s.toasts)
   const fermer = useAppStore((s) => s.fermerToast)
   return (
-    <div className="toast-host" aria-live="polite" aria-relevant="additions">
+    <div
+      className="toast-host"
+      aria-live={toasts.some((t) => t.tone === 'error') ? 'assertive' : 'polite'}
+      aria-relevant="additions"
+    >
       {toasts.map((t) => (
-        <div key={t.id} className={clsx('toast', `toast--${t.tone}`)} role="status">
+        <div key={t.id} className={clsx('toast', `toast--${t.tone}`)} role={t.tone === 'error' ? 'alert' : 'status'}>
           {ICONES[t.tone]}
           <span>{t.message}</span>
-          <button type="button" onClick={() => fermer(t.id)} aria-label="Fermer la notification">
+          <button type="button" className="toast__close" onClick={() => fermer(t.id)} aria-label="Fermer la notification">
             <FiX aria-hidden="true" />
           </button>
         </div>

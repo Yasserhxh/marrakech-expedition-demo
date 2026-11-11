@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { FiDatabase, FiPlus, FiSearch } from 'react-icons/fi'
 import { PageShell } from '@/components/PageShell'
+import { Button } from '@/components/Button'
 import { DataTable, type Column } from '@/components/DataTable'
 import { Modal } from '@/components/Modal'
 import { ConditionnementBadge } from '@/components/StatusBadge'
@@ -39,7 +40,16 @@ export function ReferentielsPage() {
   if (!ref) {
     return (
       <PageShell title="Référentiels" subtitle="Données locales utilisées pendant une coupure SAP (clients, chantiers, produits, transport)">
-        <p className="text-muted">{isError ? messageErreur(error) : 'Chargement…'}</p>
+        {isError ? (
+          <div className="page-status" role="alert">
+            {messageErreur(error)}
+          </div>
+        ) : (
+          <div className="page-status" role="status">
+            <span className="spinner" aria-hidden="true" />
+            Chargement des référentiels…
+          </div>
+        )}
       </PageShell>
     )
   }
@@ -189,12 +199,12 @@ export function ReferentielsPage() {
         title={`Ajouter — ${ONGLETS.find((o) => o.kind === onglet)?.label}`}
         footer={
           <>
-            <button type="button" className="btn-ghost" onClick={() => setAjout(false)}>
+            <Button variant="outline" onClick={() => setAjout(false)}>
               Annuler
-            </button>
-            <button type="button" className="btn-primary" onClick={enregistrer} disabled={!complet || ajouter.isPending}>
+            </Button>
+            <Button loading={ajouter.isPending} disabled={!complet} onClick={enregistrer}>
               <FiDatabase aria-hidden="true" /> Enregistrer
-            </button>
+            </Button>
           </>
         }
       >

@@ -18,10 +18,23 @@ interface ComboboxProps {
   error?: string
   help?: string
   required?: boolean
+  id?: string
 }
 
-export function Combobox({ label, options, value, onChange, placeholder, disabled, error, help, required }: ComboboxProps) {
-  const id = useId()
+export function Combobox({
+  label,
+  options,
+  value,
+  onChange,
+  placeholder,
+  disabled,
+  error,
+  help,
+  required,
+  id: idProp,
+}: ComboboxProps) {
+  const genere = useId()
+  const id = idProp ?? genere
   const [ouvert, setOuvert] = useState(false)
   const [requete, setRequete] = useState('')
   const [actif, setActif] = useState(0)
@@ -75,7 +88,12 @@ export function Combobox({ label, options, value, onChange, placeholder, disable
     <div className="form-field combobox" ref={racine}>
       <label className="form-label" htmlFor={id}>
         {label}
-        {required ? <span aria-hidden="true"> *</span> : null}
+        {required ? (
+          <span className="form-required" aria-hidden="true">
+            {' '}
+            *
+          </span>
+        ) : null}
       </label>
       <input
         id={id}
@@ -85,7 +103,8 @@ export function Combobox({ label, options, value, onChange, placeholder, disable
         aria-controls={listId}
         aria-autocomplete="list"
         aria-invalid={error ? true : undefined}
-        aria-describedby={error ? erreurId : undefined}
+        aria-required={required || undefined}
+        aria-describedby={error ? erreurId : help ? `${id}-help` : undefined}
         placeholder={placeholder}
         disabled={disabled}
         value={ouvert ? requete : (selection?.label ?? '')}
@@ -128,11 +147,13 @@ export function Combobox({ label, options, value, onChange, placeholder, disable
         </ul>
       ) : null}
       {error ? (
-        <span className="form-error" id={erreurId}>
+        <span className="form-error" id={erreurId} role="alert">
           <FiAlertCircle aria-hidden="true" /> {error}
         </span>
       ) : help ? (
-        <span className="form-help">{help}</span>
+        <span className="form-help" id={`${id}-help`}>
+          {help}
+        </span>
       ) : null}
     </div>
   )

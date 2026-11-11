@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { FiFileText, FiLogIn, FiLogOut, FiPrinter, FiXCircle } from 'react-icons/fi'
 import { Drawer } from '@/components/Drawer'
 import { Modal } from '@/components/Modal'
+import { Button } from '@/components/Button'
 import { Notice } from '@/components/Notice'
 import { DocumentPreview } from '@/components/DocumentPreview'
 import { ConditionnementBadge, OrigineBadge, StatutBadge, SynchroBadge } from '@/components/StatusBadge'
@@ -46,49 +47,47 @@ export function CommandeDrawer({ commandeId, onClose }: CommandeDrawerProps) {
   const actions = (
     <>
       {commande.statut === 'Creee' ? (
-        <button
-          type="button"
-          className="btn-primary btn-block"
-          disabled={autoriserEntree.isPending}
+        <Button
+          block
+          loading={autoriserEntree.isPending}
           onClick={() => autoriserEntree.mutate(commande.id)}
         >
           <FiLogIn aria-hidden="true" /> Autoriser la pesée d'entrée
-        </button>
+        </Button>
       ) : null}
       {commande.statut === 'EntreeAutorisee' ? (
-        <button type="button" className="btn-action btn-block" onClick={() => navigate(`/pesee/entree/${commande.id}`)}>
+        <Button variant="secondary" block onClick={() => navigate(`/pesee/entree/${commande.id}`)}>
           <FiLogIn aria-hidden="true" /> Ouvrir la pesée d'entrée (tare)
-        </button>
+        </Button>
       ) : null}
       {commande.statut === 'DansUsine' ? (
-        <button
-          type="button"
-          className="btn-primary btn-block"
-          disabled={autoriserSortie.isPending}
+        <Button
+          block
+          loading={autoriserSortie.isPending}
           onClick={() => autoriserSortie.mutate(commande.id)}
         >
           <FiLogOut aria-hidden="true" /> Autoriser le 2ᵉ pesage
-        </button>
+        </Button>
       ) : null}
       {commande.statut === 'SortieAutorisee' ? (
-        <button type="button" className="btn-action btn-block" onClick={() => navigate(`/pesee/sortie/${commande.id}`)}>
+        <Button variant="secondary" block onClick={() => navigate(`/pesee/sortie/${commande.id}`)}>
           <FiLogOut aria-hidden="true" /> Ouvrir la pesée de sortie (brut)
-        </button>
+        </Button>
       ) : null}
       {commande.bonDeLivraison ? (
-        <button type="button" className="btn-teal btn-block" onClick={() => setApercu('BL')}>
+        <Button variant="teal" block onClick={() => setApercu('BL')}>
           <FiPrinter aria-hidden="true" /> Réimprimer le Bon de livraison
-        </button>
+        </Button>
       ) : null}
       {commande.bonDeChargement ? (
-        <button type="button" className="btn-ghost btn-block" onClick={() => setApercu('BC')}>
+        <Button variant="outline" block onClick={() => setApercu('BC')}>
           <FiPrinter aria-hidden="true" /> Réimprimer le Bon de chargement
-        </button>
+        </Button>
       ) : null}
       {annulable ? (
-        <button type="button" className="btn-danger btn-block" onClick={() => setConfirmerAnnulation(true)}>
+        <Button variant="danger" block onClick={() => setConfirmerAnnulation(true)}>
           <FiXCircle aria-hidden="true" /> Annuler la commande
-        </button>
+        </Button>
       ) : null}
     </>
   )
@@ -104,10 +103,9 @@ export function CommandeDrawer({ commandeId, onClose }: CommandeDrawerProps) {
           </span>
         }
         subtitle={
-          <span style={{ display: 'inline-flex', gap: 8, flexWrap: 'wrap' }}>
+          <span className="drawer-badges">
             <OrigineBadge origine={commande.origine} />
             <StatutBadge statut={commande.statut} />
-            <SynchroBadge synchro={commande.synchro} sapNatif={commande.origine === 'Sap'} />
           </span>
         }
         footer={actions}
@@ -123,8 +121,8 @@ export function CommandeDrawer({ commandeId, onClose }: CommandeDrawerProps) {
           </Notice>
         ) : null}
 
-        <section>
-          <h3 style={{ fontSize: 15, marginBottom: 8 }}>Client et livraison</h3>
+        <section className="drawer-section">
+          <h3>Client et chantier</h3>
           <dl className="detail-list">
             <div>
               <dt>Client</dt>
@@ -141,6 +139,20 @@ export function CommandeDrawer({ commandeId, onClose }: CommandeDrawerProps) {
               </dd>
             </div>
             <div>
+              <dt>Incoterm</dt>
+              <dd>{INCOTERM_LABELS[commande.incoterm]}</dd>
+            </div>
+            <div>
+              <dt>Créée le</dt>
+              <dd>{formatDateTime(commande.creeeLeUtc)}</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section className="drawer-section">
+          <h3>Produit et quantité</h3>
+          <dl className="detail-list">
+            <div>
               <dt>Produit</dt>
               <dd>
                 {produit?.libelle ?? ABSENT}{' '}
@@ -155,10 +167,12 @@ export function CommandeDrawer({ commandeId, onClose }: CommandeDrawerProps) {
                 {commande.nombreSacs ? <span className="cell-sub">{formatNombre(commande.nombreSacs)} sacs</span> : null}
               </dd>
             </div>
-            <div>
-              <dt>Incoterm</dt>
-              <dd>{INCOTERM_LABELS[commande.incoterm]}</dd>
-            </div>
+          </dl>
+        </section>
+
+        <section className="drawer-section">
+          <h3>Transport</h3>
+          <dl className="detail-list">
             <div>
               <dt>Transporteur</dt>
               <dd>{transporteur?.nom ?? ABSENT}</dd>
@@ -167,7 +181,7 @@ export function CommandeDrawer({ commandeId, onClose }: CommandeDrawerProps) {
               <dt>Camion</dt>
               <dd className="mono">{camion?.immatriculation ?? ABSENT}</dd>
             </div>
-            <div>
+            <div className="detail-item span-2">
               <dt>Chauffeur</dt>
               <dd>
                 {chauffeur?.nom ?? ABSENT}
@@ -177,16 +191,18 @@ export function CommandeDrawer({ commandeId, onClose }: CommandeDrawerProps) {
           </dl>
         </section>
 
-        <section>
-          <h3 style={{ fontSize: 15, marginBottom: 8 }}>Pesées et documents</h3>
+        <section className="drawer-section">
+          <h3>Pesées et documents</h3>
           <dl className="detail-list">
-            <div>
-              <dt>Créée le</dt>
-              <dd>{formatDateTime(commande.creeeLeUtc)}</dd>
-            </div>
             <div>
               <dt>N° SAP</dt>
               <dd className="mono">{commande.numeroSap ?? ABSENT}</dd>
+            </div>
+            <div>
+              <dt>Synchronisation</dt>
+              <dd>
+                <SynchroBadge synchro={commande.synchro} sapNatif={commande.origine === 'Sap'} />
+              </dd>
             </div>
             <div>
               <dt>Entrée (tare)</dt>
@@ -224,6 +240,12 @@ export function CommandeDrawer({ commandeId, onClose }: CommandeDrawerProps) {
                   : ABSENT}
               </dd>
             </div>
+            {commande.commentaire ? (
+              <div className="detail-item span-2">
+                <dt>Commentaire</dt>
+                <dd>{commande.commentaire}</dd>
+              </div>
+            ) : null}
           </dl>
         </section>
 
@@ -245,14 +267,14 @@ export function CommandeDrawer({ commandeId, onClose }: CommandeDrawerProps) {
         open={confirmerAnnulation}
         onClose={() => setConfirmerAnnulation(false)}
         title="Annuler la commande ?"
+        dismissible={false}
         footer={
           <>
-            <button type="button" className="btn-ghost" onClick={() => setConfirmerAnnulation(false)}>
+            <Button variant="outline" onClick={() => setConfirmerAnnulation(false)}>
               Conserver la commande
-            </button>
-            <button
-              type="button"
-              className="btn-danger"
+            </Button>
+            <Button
+              variant="danger"
               onClick={() => {
                 annulerCommande.mutate(commande.id)
                 setConfirmerAnnulation(false)
@@ -260,7 +282,7 @@ export function CommandeDrawer({ commandeId, onClose }: CommandeDrawerProps) {
               }}
             >
               <FiXCircle aria-hidden="true" /> Confirmer l'annulation
-            </button>
+            </Button>
           </>
         }
       >

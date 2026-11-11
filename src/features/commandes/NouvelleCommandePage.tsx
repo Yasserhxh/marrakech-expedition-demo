@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { FiAlertCircle, FiCheck, FiPlus } from 'react-icons/fi'
 import { PageShell } from '@/components/PageShell'
+import { Button } from '@/components/Button'
 import { Combobox } from '@/components/Combobox'
 import { Notice } from '@/components/Notice'
 import { ConditionnementBadge } from '@/components/StatusBadge'
@@ -10,6 +11,7 @@ import { REFERENTIELS_VIDES, useReferentiels } from '@/features/referentiels/hoo
 import { useAppStore } from '@/store/useAppStore'
 import type { Incoterm } from '@/types'
 import { INCOTERM_LABELS } from '@/types'
+import { messageErreur } from '@/utils/erreurs'
 import { formatNombre, formatTonnes } from '@/utils/format'
 
 const KG_PAR_TONNE = 1000
@@ -75,7 +77,21 @@ export function NouvelleCommandePage() {
 
   const creer = () => {
     setSoumis(true)
-    if (!valide) return
+    if (!valide) {
+      const premier = (
+        [
+          ['clientId', 'champ-client'],
+          ['chantierId', 'champ-chantier'],
+          ['produitId', 'champ-produit'],
+          ['quantiteT', 'quantite'],
+          ['transporteurId', 'champ-transporteur'],
+          ['camionId', 'champ-camion'],
+          ['chauffeurId', 'champ-chauffeur'],
+        ] as const
+      ).find(([cle]) => erreurs[cle])
+      if (premier) document.getElementById(premier[1])?.focus()
+      return
+    }
     creerCommande.mutate(
       {
         clientId: f.clientId,
@@ -107,6 +123,7 @@ export function NouvelleCommandePage() {
           (basculez SAP « Hors ligne » dans la barre de démonstration).
         </Notice>
       ) : null}
+      {creerCommande.isError ? <Notice tone="danger">{messageErreur(creerCommande.error)}</Notice> : null}
 
       <div className="form-layout">
         <form
@@ -122,6 +139,7 @@ export function NouvelleCommandePage() {
           </h3>
           <div className="form-grid">
             <Combobox
+              id="champ-client"
               label="Client"
               required
               options={ref.clients.map((c) => ({ value: c.id, label: c.nom, sub: c.code }))}
@@ -131,6 +149,7 @@ export function NouvelleCommandePage() {
               error={err('clientId')}
             />
             <Combobox
+              id="champ-chantier"
               label="Chantier"
               required
               options={chantiers.map((c) => ({ value: c.id, label: c.nom, sub: c.ville }))}
@@ -148,6 +167,7 @@ export function NouvelleCommandePage() {
           </h3>
           <div className="form-grid">
             <Combobox
+              id="champ-produit"
               label="Produit"
               required
               options={ref.produits.map((p) => ({
@@ -171,9 +191,11 @@ export function NouvelleCommandePage() {
                 value={f.quantiteT}
                 onChange={(e) => maj({ quantiteT: e.target.value })}
                 aria-invalid={err('quantiteT') ? true : undefined}
+                aria-required="true"
+                aria-describedby={err('quantiteT') ? 'quantite-erreur' : undefined}
               />
               {err('quantiteT') ? (
-                <span className="form-error">
+                <span className="form-error" id="quantite-erreur" role="alert">
                   <FiAlertCircle aria-hidden="true" /> {err('quantiteT')}
                 </span>
               ) : (
@@ -186,7 +208,7 @@ export function NouvelleCommandePage() {
               <legend className="form-label">Incoterm *</legend>
               <div className="btn-row">
                 {(['Depart', 'Rendu'] as Incoterm[]).map((i) => (
-                  <label key={i} className="btn-ghost" style={{ cursor: 'pointer' }}>
+                  <label key={i} className="choice">
                     <input
                       type="radio"
                       name="incoterm"
@@ -209,6 +231,7 @@ export function NouvelleCommandePage() {
           </h3>
           <div className="form-grid">
             <Combobox
+              id="champ-transporteur"
               label="Transporteur"
               required
               options={ref.transporteurs.map((t) => ({ value: t.id, label: t.nom, sub: t.code }))}
@@ -218,6 +241,7 @@ export function NouvelleCommandePage() {
               error={err('transporteurId')}
             />
             <Combobox
+              id="champ-camion"
               label="Camion (immatriculation)"
               required
               options={camions.map((c) => ({ value: c.id, label: c.immatriculation }))}
@@ -228,6 +252,7 @@ export function NouvelleCommandePage() {
               error={err('camionId')}
             />
             <Combobox
+              id="champ-chauffeur"
               label="Chauffeur (nom + CIN)"
               required
               options={chauffeurs.map((c) => ({ value: c.id, label: c.nom, sub: `CIN ${c.cin}` }))}
@@ -243,9 +268,9 @@ export function NouvelleCommandePage() {
             <Link to="/commandes" className="btn-ghost">
               Annuler
             </Link>
-            <button type="submit" className="btn-primary btn-lg" disabled={sapOnline || creerCommande.isPending}>
+            <Button type="submit" size="lg" loading={creerCommande.isPending} disabled={sapOnline}>
               <FiPlus aria-hidden="true" /> Créer la commande
-            </button>
+            </Button>
           </div>
         </form>
 

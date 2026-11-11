@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { FiClock, FiHome, FiInbox, FiPlus, FiRefreshCw, FiSearch, FiTruck, FiCheckCircle } from 'react-icons/fi'
+import clsx from 'clsx'
+import { FiClock, FiHome, FiInbox, FiPlus, FiRefreshCw, FiSearch, FiTruck, FiCheckCircle, FiX } from 'react-icons/fi'
 import { PageShell } from '@/components/PageShell'
+import { Button } from '@/components/Button'
 import { KpiCard } from '@/components/KpiCard'
 import { DataTable, type Column } from '@/components/DataTable'
 import { EmptyState } from '@/components/EmptyState'
@@ -26,6 +28,12 @@ const GROUPES: Record<Exclude<Groupe, 'tous'>, (c: Commande) => boolean> = {
   synchro: (c) => c.synchro === 'EnAttente' || c.synchro === 'EnCours' || c.synchro === 'Erreur',
 }
 
+function libelleResultat(affiches: number, total: number) {
+  const nom = (n: number) => (n > 1 ? 'commandes' : 'commande')
+  if (affiches === total) return `${affiches} ${nom(affiches)}`
+  return `${affiches} ${nom(affiches)} sur ${total}`
+}
+
 const STATUTS: StatutCommande[] = [
   'Creee',
   'EntreeAutorisee',
@@ -38,7 +46,7 @@ const STATUTS: StatutCommande[] = [
 ]
 
 export function CommandesPage() {
-  const { data: commandes = [], isError, error } = useCommandes()
+  const { data: commandes = [], isError, error, isPending, isFetching } = useCommandes()
   const sapOnline = useAppStore((s) => s.sapOnline)
   const r = useReferentielLookup()
   const [recherche, setRecherche] = useState('')
@@ -147,12 +155,19 @@ export function CommandesPage() {
   ]
 
   const basculerGroupe = (g: Exclude<Groupe, 'tous'>) => setGroupe((prev) => (prev === g ? 'tous' : g))
+  const filtresActifs = Boolean(recherche.trim() || statut || origine || groupe !== 'tous')
+  const reinitialiserFiltres = () => {
+    setRecherche('')
+    setStatut('')
+    setOrigine('')
+    setGroupe('tous')
+  }
 
   const boutonNouvelle = sapOnline ? (
     <span title="SAP est en ligne : créez la commande dans SAP, elle arrivera automatiquement ici.">
-      <button type="button" className="btn-primary" disabled aria-describedby="aide-nouvelle">
+      <Button disabled aria-describedby="aide-nouvelle">
         <FiPlus aria-hidden="true" /> Nouvelle commande (SAP indisponible)
-      </button>
+      </Button>
     </span>
   ) : (
     <Link to="/commandes/nouvelle" className="btn-primary">
@@ -162,6 +177,7 @@ export function CommandesPage() {
 
   return (
     <PageShell
+      layout="operations"
       title="Commandes du jour"
       subtitle={
         <>
@@ -175,8 +191,8 @@ export function CommandesPage() {
       }
       actions={boutonNouvelle}
     >
-      {isError ? <Notice tone="danger">{messageErreur(error)}</Notice> : null}
-      <div className="kpi-row">
+      {isError && commandes.length > 0 ? <Notice tone="danger">{messageErreur(error)}</Notice> : null}
+      <div className="kpi-row commandes-kpis">
         <KpiCard
           title="À peser"
           value={compte.aPeser}
@@ -223,11 +239,22 @@ export function CommandesPage() {
             <FiSearch aria-hidden="true" />
             <input
               id="f-recherche"
-              className="filter-input filter-input--search"
-              placeholder="N°, client, chantier, camion, chauffeur…"
+              className={clsx('filter-input filter-input--search', recherche && 'has-clear')}
+              placeholder="N°, client, chantier, produit, camion, chauffeur…"
               value={recherche}
               onChange={(e) => setRecherche(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape' && recherche) {
+                  e.preventDefault()
+                  setRecherche('')
+                }
+              }}
             />
+            {recherche ? (
+              <button type="button" className="filter-search__clear" aria-label="Effacer la recherche" onClick={() => setRecherche('')}>
+                <FiX aria-hidden="true" />
+              </button>
+            ) : null}
           </div>
         </div>
         <div className="filter-field">
@@ -263,21 +290,14 @@ export function CommandesPage() {
             <option value="Locale">Locale</option>
           </select>
         </div>
-        <button
-          type="button"
-          className="btn-ghost"
-          onClick={() => {
-            setRecherche('')
-            setStatut('')
-            setOrigine('')
-            setGroupe('tous')
-          }}
-        >
-          Réinitialiser
-        </button>
-        <span className="text-muted" style={{ marginLeft: 'auto', fontSize: 13 }}>
-          {lignes.length} commande{lignes.length > 1 ? 's' : ''}
-        </span>
+        <div className="filter-meta">
+          <Button variant="outline" size="sm" disabled={!filtresActifs} onClick={reinitialiserFiltres}>
+            Réinitialiser les filtres
+          </Button>
+          <p className="filter-count" aria-live="polite">
+            {libelleResultat(lignes.length, commandes.length)}
+          </p>
+        </div>
       </div>
 
       <div className="admin-card admin-card--flush">
@@ -289,19 +309,39 @@ export function CommandesPage() {
           rowLabel={(c) => `Ouvrir la commande ${numeroAffiche(c)}`}
           onRowClick={(c) => setSelection(c.id)}
           selectedKey={selection}
+          loading={isPending && commandes.length === 0}
+          refreshing={isFetching && commandes.length > 0}
+          error={isError && commandes.length === 0 ? messageErreur(error) : undefined}
           empty={
-            <EmptyState
-              icon={<FiInbox />}
-              title="Aucune commande ne correspond"
-              description="Modifiez les filtres ou, si SAP est indisponible, créez une commande locale."
-              action={
-                !sapOnline ? (
-                  <Link to="/commandes/nouvelle" className="btn-primary btn-sm">
-                    <FiPlus aria-hidden="true" /> Nouvelle commande
-                  </Link>
-                ) : undefined
-              }
-            />
+            commandes.length === 0 ? (
+              <EmptyState
+                icon={<FiInbox />}
+                title="Aucune commande du jour"
+                description={
+                  sapOnline
+                    ? 'Les commandes SAP du jour apparaîtront ici dès leur réception.'
+                    : 'SAP est indisponible. Vous pouvez créer une commande locale en attendant le retour de SAP.'
+                }
+                action={
+                  !sapOnline ? (
+                    <Link to="/commandes/nouvelle" className="btn-primary btn-sm">
+                      <FiPlus aria-hidden="true" /> Nouvelle commande (SAP indisponible)
+                    </Link>
+                  ) : undefined
+                }
+              />
+            ) : (
+              <EmptyState
+                icon={<FiSearch />}
+                title="Aucune commande ne correspond"
+                description="Modifiez la recherche ou les filtres. Les commandes du jour restent disponibles."
+                action={
+                  <Button variant="outline" size="sm" onClick={reinitialiserFiltres}>
+                    Réinitialiser les filtres
+                  </Button>
+                }
+              />
+            )
           }
         />
       </div>

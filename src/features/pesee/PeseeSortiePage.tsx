@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import clsx from 'clsx'
 import { FiArrowRight, FiCheck, FiSliders, FiTruck, FiXCircle } from 'react-icons/fi'
 import { PageShell } from '@/components/PageShell'
+import { Button } from '@/components/Button'
 import { WeightDisplay } from '@/components/WeightDisplay'
 import { DocumentPreview } from '@/components/DocumentPreview'
 import { EmptyState } from '@/components/EmptyState'
@@ -152,17 +153,17 @@ export function PeseeSortiePage() {
         <div className="admin-card">
           <DocumentPreview type="BL" commande={confirmee} />
         </div>
-        <div className="btn-row" style={{ justifyContent: 'center' }}>
+        <div className="btn-row">
           {confirmee.synchro === 'EnAttente' ? (
-            <Link to="/synchronisation" className="btn-primary btn-lg">
+            <Link to="/synchronisation" className="btn-primary">
               Terminer — voir la synchronisation SAP <FiArrowRight aria-hidden="true" />
             </Link>
           ) : (
-            <Link to="/commandes" className="btn-primary btn-lg">
+            <Link to="/commandes" className="btn-primary">
               Terminer — retour aux commandes <FiArrowRight aria-hidden="true" />
             </Link>
           )}
-          <Link to="/usine" className="btn-ghost btn-lg">
+          <Link to="/usine" className="btn-ghost">
             Retour à « Dans l'usine »
           </Link>
         </div>
@@ -189,14 +190,9 @@ export function PeseeSortiePage() {
             }
             action={
               commande.statut === 'DansUsine' ? (
-                <button
-                  type="button"
-                  className="btn-primary"
-                  disabled={autoriser.isPending}
-                  onClick={() => autoriser.mutate(commande.id)}
-                >
+                <Button loading={autoriser.isPending} onClick={() => autoriser.mutate(commande.id)}>
                   <FiCheck aria-hidden="true" /> Autoriser le 2ᵉ pesage (guichet)
-                </button>
+                </Button>
               ) : (
                 <Link to="/commandes" className="btn-ghost">
                   Retour aux commandes
@@ -241,11 +237,11 @@ export function PeseeSortiePage() {
           </div>
 
           <div style={{ marginTop: 16 }}>
-            <button type="button" className="btn-primary btn-lg btn-block" disabled={!poids.stable || validerBrut.isPending} onClick={valider}>
+            <Button size="lg" loading={validerBrut.isPending} disabled={!poids.stable} onClick={valider}>
               <FiCheck aria-hidden="true" /> Valider et imprimer le Bon de livraison
-            </button>
+            </Button>
             {!poids.stable ? (
-              <p className="text-muted" style={{ fontSize: 12, marginTop: 6, textAlign: 'center' }}>
+              <p className="text-muted" style={{ fontSize: 12, marginTop: 6 }}>
                 Le bouton s'active dès que le poids brut est stable.
               </p>
             ) : null}

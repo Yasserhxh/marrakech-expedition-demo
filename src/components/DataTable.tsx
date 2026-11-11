@@ -22,6 +22,12 @@ interface DataTableProps<T> {
   rowLabel?: (row: T) => string
   selectedKey?: string | number | null
   empty?: ReactNode
+  /** Premier chargement, sans lignes à conserver. */
+  loading?: boolean
+  /** Rafraîchissement pendant que les lignes restent affichées. */
+  refreshing?: boolean
+  /** Erreur affichée seulement s'il n'y a aucune ligne. */
+  error?: ReactNode
   defaultSort?: { key: string; direction: Direction }
   maxHeight?: string
 }
@@ -35,6 +41,9 @@ export function DataTable<T>({
   rowLabel,
   selectedKey,
   empty,
+  loading = false,
+  refreshing = false,
+  error,
   defaultSort,
   maxHeight,
 }: DataTableProps<T>) {
@@ -62,13 +71,35 @@ export function DataTable<T>({
     })
   }
 
+  const estControle = (cible: EventTarget | null) =>
+    cible instanceof Element && Boolean(cible.closest('button, a, input, select, textarea, label'))
+
   const ariaSort = (key: string): 'ascending' | 'descending' | 'none' => {
     if (!sort || sort.key !== key) return 'none'
     return sort.direction === 'asc' ? 'ascending' : 'descending'
   }
 
+  const vide = sorted.length === 0
+  const enChargement = loading && vide && !error
+  const enErreur = Boolean(error) && vide
+  const enActualisation = refreshing && !vide
+
   return (
-    <div className="docs-table-wrapper" style={maxHeight ? { maxHeight } : undefined}>
+    <div
+      className={clsx('docs-table-wrapper', enActualisation && 'is-refreshing')}
+      style={maxHeight ? { maxHeight } : undefined}
+      aria-busy={enChargement || enActualisation || undefined}
+    >
+      {enChargement ? (
+        <span className="visually-hidden" role="status">
+          Chargement des données
+        </span>
+      ) : null}
+      {enActualisation ? (
+        <span className="visually-hidden" role="status" aria-label="Actualisation du tableau">
+          Actualisation du tableau
+        </span>
+      ) : null}
       <table className="docs-table">
         <caption className="visually-hidden">{caption}</caption>
         <thead>
@@ -109,9 +140,27 @@ export function DataTable<T>({
           </tr>
         </thead>
         <tbody>
-          {sorted.length === 0 ? (
+          {enChargement ? (
+            Array.from({ length: 4 }, (_, index) => (
+              <tr key={`squelette-${index}`} className="is-skeleton" aria-hidden="true">
+                {columns.map((col) => (
+                  <td key={col.key}>
+                    <span className="table-skeleton" />
+                  </td>
+                ))}
+              </tr>
+            ))
+          ) : enErreur ? (
             <tr>
-              <td colSpan={columns.length} style={{ whiteSpace: 'normal' }}>
+              <td colSpan={columns.length}>
+                <div className="table-state" role="alert">
+                  {error}
+                </div>
+              </td>
+            </tr>
+          ) : vide ? (
+            <tr>
+              <td colSpan={columns.length}>
                 {empty ?? <span className="text-muted">Aucune ligne.</span>}
               </td>
             </tr>
@@ -125,10 +174,18 @@ export function DataTable<T>({
                   className={clsx(cliquable && 'is-clickable', selectedKey === key && 'is-selected')}
                   tabIndex={cliquable ? 0 : undefined}
                   aria-label={cliquable && rowLabel ? rowLabel(row) : undefined}
-                  onClick={cliquable ? () => onRowClick?.(row) : undefined}
+                  onClick={
+                    cliquable
+                      ? (e) => {
+                          if (estControle(e.target)) return
+                          onRowClick?.(row)
+                        }
+                      : undefined
+                  }
                   onKeyDown={
                     cliquable
                       ? (e) => {
+                          if (e.target !== e.currentTarget) return
                           if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault()
                             onRowClick?.(row)

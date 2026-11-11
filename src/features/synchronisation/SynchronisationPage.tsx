@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { FiAlertTriangle, FiCheckCircle, FiClock, FiPrinter, FiRefreshCw, FiUnlock, FiWifi, FiWifiOff } from 'react-icons/fi'
 import { PageShell } from '@/components/PageShell'
+import { Button } from '@/components/Button'
 import { KpiCard } from '@/components/KpiCard'
 import { DataTable, type Column } from '@/components/DataTable'
 import { EmptyState } from '@/components/EmptyState'
@@ -32,7 +33,7 @@ interface Ligne {
 
 export function SynchronisationPage() {
   const sapOnline = useAppStore((s) => s.sapOnline)
-  const { data: syncOps = [] } = useSyncOperations()
+  const { data: syncOps = [], isPending, isFetching, isError, error } = useSyncOperations()
   const { data: commandes = [] } = useCommandes()
   const { data: clientsBloques = [] } = useClientsBloques()
   const r = useReferentielLookup()
@@ -132,6 +133,7 @@ export function SynchronisationPage() {
                 style={{ fontSize: 12 }}
                 onClick={() => client && deblocage.mutate(client.code)}
                 disabled={deblocage.isPending}
+                aria-busy={deblocage.isPending || undefined}
               >
                 <FiUnlock aria-hidden="true" /> Simuler le déblocage du client dans SAP (démo)
               </button>
@@ -146,24 +148,25 @@ export function SynchronisationPage() {
       render: ({ op, commande }) => (
         <span className="btn-row" style={{ flexWrap: 'nowrap' }}>
           {op.statut === 'EnAttente' ? (
-            <button
-              type="button"
-              className="btn-action btn-sm"
-              disabled={!sapOnline || tout.isPending || (synchroniser.isPending && synchroniser.variables === op.id)}
+            <Button
+              variant="secondary"
+              size="sm"
+              loading={synchroniser.isPending && synchroniser.variables === op.id}
+              disabled={!sapOnline || tout.isPending}
               onClick={() => synchroniser.mutate(op.id)}
             >
               <FiRefreshCw aria-hidden="true" /> Synchroniser
-            </button>
+            </Button>
           ) : null}
           {op.statut === 'Erreur' ? (
-            <button
-              type="button"
-              className="btn-primary btn-sm"
-              disabled={!sapOnline || tout.isPending || (synchroniser.isPending && synchroniser.variables === op.id)}
+            <Button
+              size="sm"
+              loading={synchroniser.isPending && synchroniser.variables === op.id}
+              disabled={!sapOnline || tout.isPending}
               onClick={() => synchroniser.mutate(op.id)}
             >
               <FiRefreshCw aria-hidden="true" /> Réessayer
-            </button>
+            </Button>
           ) : null}
           {op.statut === 'Synchronisee' && commande.bonDeLivraison ? (
             <button type="button" className="btn-teal btn-sm" onClick={() => setBlAReimprimer(commande)}>
@@ -183,19 +186,18 @@ export function SynchronisationPage() {
       subtitle="File des opérations à rejouer vers SAP : création de commande, livraison, lecture du numéro de BL"
       actions={
         <>
-          <button type="button" className="btn-ghost" onClick={() => void ping.refetch()} disabled={ping.isFetching}>
-            <FiWifi aria-hidden="true" /> {ping.isFetching ? 'Test en cours…' : 'Tester la connexion SAP'}
-          </button>
+          <Button variant="outline" loading={ping.isFetching} onClick={() => void ping.refetch()}>
+            <FiWifi aria-hidden="true" /> Tester la connexion SAP
+          </Button>
           <span title={!sapOnline ? 'SAP est hors ligne : impossible de synchroniser' : undefined}>
-            <button
-              type="button"
-              className="btn-primary"
-              disabled={!sapOnline || tout.isPending || aSynchroniser === 0}
+            <Button
+              loading={tout.isPending}
+              disabled={!sapOnline || aSynchroniser === 0}
               onClick={() => void toutSynchroniser()}
             >
               <FiRefreshCw aria-hidden="true" />
-              {tout.isPending ? 'Synchronisation en cours…' : `Tout synchroniser (${aSynchroniser})`}
-            </button>
+              {`Tout synchroniser (${aSynchroniser})`}
+            </Button>
           </span>
         </>
       }
@@ -248,6 +250,9 @@ export function SynchronisationPage() {
           columns={colonnes}
           rows={lignes}
           rowKey={(l) => l.op.id}
+          loading={isPending && lignes.length === 0}
+          refreshing={isFetching && lignes.length > 0}
+          error={isError ? messageErreur(error) : undefined}
           empty={
             <EmptyState
               icon={<FiCheckCircle />}

@@ -24,7 +24,7 @@ describe('parcours commandes', () => {
     renderApp(<CommandesPage />)
     expect(screen.getByText('12 commandes')).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Rechercher'), { target: { value: 'el ouafi' } })
-    expect(screen.getByText('1 commande')).toBeInTheDocument()
+    expect(screen.getByText('1 commande sur 12')).toBeInTheDocument()
     expect(screen.getByText(/EL OUAFI/i)).toBeInTheDocument()
   })
 

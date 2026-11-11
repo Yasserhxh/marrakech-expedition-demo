@@ -115,7 +115,13 @@ export function AdminSidebar() {
     <nav className={clsx('admin-sidebar', repliee && 'is-collapsed')} aria-label="Navigation principale">
       <div className="admin-sidebar__header">
         {!repliee ? (
-          <button type="button" className="admin-sidebar__toggle" onClick={toggle} aria-label="Replier le menu">
+          <button
+            type="button"
+            className="admin-sidebar__toggle"
+            onClick={toggle}
+            aria-label="Replier le menu"
+            aria-expanded="true"
+          >
             <FiChevronLeft size={18} aria-hidden="true" />
           </button>
         ) : null}
@@ -123,7 +129,13 @@ export function AdminSidebar() {
           <img src="/media/CIMAR_LOGO_Horizontal.svg" alt="CIMAR" className={repliee ? 'brand--mini' : 'brand--full'} />
         </NavLink>
         {repliee ? (
-          <button type="button" className="admin-sidebar__toggle" onClick={toggle} aria-label="Déplier le menu">
+          <button
+            type="button"
+            className="admin-sidebar__toggle"
+            onClick={toggle}
+            aria-label="Déplier le menu"
+            aria-expanded="false"
+          >
             <FiChevronRight size={18} aria-hidden="true" />
           </button>
         ) : null}
@@ -142,6 +154,7 @@ export function AdminSidebar() {
                   to={item.to}
                   className={clsx('admin-sidebar__item', estActif(item) && 'is-active')}
                   aria-current={estActif(item) ? 'page' : undefined}
+                  aria-label={item.label}
                   title={repliee ? item.label : undefined}
                 >
                   <span className="admin-sidebar__icon">{item.icon}</span>

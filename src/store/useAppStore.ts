@@ -69,8 +69,8 @@ export const useAppStore = create<AppState>()((set, get) => ({
       toasts: [...s.toasts, { id, tone, message }],
       compteurToast: id + 1,
     }))
-    const DUREE_TOAST_MS = 4500
-    window.setTimeout(() => get().fermerToast(id), DUREE_TOAST_MS)
+    const duree = tone === 'error' ? 9000 : tone === 'warning' ? 6500 : 4500
+    window.setTimeout(() => get().fermerToast(id), duree)
   },
   fermerToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
 }))

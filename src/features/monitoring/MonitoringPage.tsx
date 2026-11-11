@@ -2,6 +2,7 @@ import { useState } from 'react'
 import clsx from 'clsx'
 import { FiActivity, FiAlertTriangle, FiExternalLink, FiRadio, FiSearch, FiZap } from 'react-icons/fi'
 import { PageShell } from '@/components/PageShell'
+import { Notice } from '@/components/Notice'
 import { KpiCard } from '@/components/KpiCard'
 import { DataTable, type Column } from '@/components/DataTable'
 import { useMonitoring } from '@/features/monitoring/hooks/useMonitoring'
@@ -16,7 +17,14 @@ export function MonitoringPage() {
   if (!snapshot) {
     return (
       <PageShell title="Monitoring" subtitle="Santé de l'API Marrakech, dépendances et erreurs récentes (données simulées)">
-        <p className="text-muted">{isError ? messageErreur(error) : 'Chargement…'}</p>
+        {isError ? (
+          <Notice tone="danger">{messageErreur(error)}</Notice>
+        ) : (
+          <div className="page-status" role="status">
+            <span className="spinner" aria-hidden="true" />
+            Chargement du monitoring…
+          </div>
+        )}
       </PageShell>
     )
   }
@@ -119,7 +127,18 @@ export function MonitoringPage() {
             />
           </div>
         </div>
-        <DataTable caption="Erreurs récentes" columns={colonnes} rows={erreurs} rowKey={(e) => e.correlationId} defaultSort={{ key: 'heure', direction: 'desc' }} />
+        <DataTable
+          caption="Erreurs récentes"
+          columns={colonnes}
+          rows={erreurs}
+          rowKey={(e) => e.correlationId}
+          defaultSort={{ key: 'heure', direction: 'desc' }}
+          empty={
+            recherche.trim()
+              ? 'Aucune erreur ne correspond à cette recherche.'
+              : 'Aucune erreur récente.'
+          }
+        />
       </div>
     </PageShell>
   )
